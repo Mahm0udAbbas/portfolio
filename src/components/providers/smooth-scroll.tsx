@@ -13,6 +13,13 @@ gsap.registerPlugin(ScrollTrigger);
  * Paused while the preloader runs. Disabled for users who prefer reduced motion.
  */
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
+  // Layout is locked while preloading — re-measure scroll animations once the page is live.
+  useEffect(() => {
+    const refresh = () => ScrollTrigger.refresh();
+    window.addEventListener(PRELOADER_DONE, refresh);
+    return () => window.removeEventListener(PRELOADER_DONE, refresh);
+  }, []);
+
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 

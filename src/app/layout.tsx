@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description: site.tagline,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children, modal }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
@@ -35,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SmoothScroll>
           <Preloader />
           {children}
+          {modal}
         </SmoothScroll>
       </body>
     </html>

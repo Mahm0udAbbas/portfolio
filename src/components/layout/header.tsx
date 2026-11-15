@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { site, type SectionId } from "@/content/site";
 import { Logo } from "@/components/brand/logo";
 import { getLenis } from "@/lib/lenis";
@@ -10,6 +11,8 @@ export function Header() {
   const [hidden, setHidden] = useState(false);
   const [active, setActive] = useState<SectionId | null>(null);
   const [open, setOpen] = useState(false);
+  // On sub-pages (e.g. /projects/x) section links must go back to the home page.
+  const base = usePathname() === "/" ? "" : "/";
 
   // Hide on scroll down / show on scroll up
   useEffect(() => {
@@ -90,7 +93,7 @@ export function Header() {
               return (
                 <li key={item.id}>
                   <a
-                    href={`#${item.id}`}
+                    href={`${base}#${item.id}`}
                     aria-current={isActive ? "true" : undefined}
                     className={`group relative py-1 transition-colors hover:text-fg ${isActive ? "text-accent" : "text-muted"}`}
                   >
@@ -106,7 +109,7 @@ export function Header() {
         </nav>
 
         {/* Right: logo — the preloader logo lands exactly here */}
-        <a href="#hero" data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
+        <a href={`${base}#hero`} data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
           <Logo className="size-10" />
         </a>
       </div>
@@ -121,8 +124,8 @@ export function Header() {
           {site.nav.map((item, i) => (
             <li key={item.id}>
               <a
-                href={`#${item.id}`}
-                onClick={(e) => goTo(e, item.id)}
+                href={`${base}#${item.id}`}
+                onClick={(e) => (base ? setOpen(false) : goTo(e, item.id))}
                 className={`flex items-baseline gap-4 text-4xl font-semibold ${active === item.id ? "text-accent" : "text-fg"}`}
               >
                 <span className="font-mono text-sm text-muted">{String(i + 1).padStart(2, "0")}</span>

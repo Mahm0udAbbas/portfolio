@@ -154,3 +154,8 @@ export const site = {
 };
 
 export type Site = typeof site;
+
+export const getProject = (slug: string) => {
+  const index = site.projects.findIndex((p) => p.slug === slug);
+  return index === -1 ? null : { project: site.projects[index] as Project, index };
+};
