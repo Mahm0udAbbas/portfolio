@@ -5,7 +5,7 @@ import { Section } from "@/components/ui/section";
 export function Skills() {
   return (
     <Section id="skills" label="skills">
-      <div className="grid gap-10 sm:grid-cols-2">
+      <div data-reveal data-reveal-children className="grid gap-10 sm:grid-cols-2">
         {site.skills.map((g) => (
           <div key={g.label}>
             <h3 className="mb-4 font-mono text-sm text-muted">{g.label}</h3>

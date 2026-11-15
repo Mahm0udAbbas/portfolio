@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { getLenis } from "@/lib/lenis";
+import { lockScroll } from "@/lib/lenis";
 
 gsap.registerPlugin(useGSAP);
 
@@ -94,14 +94,7 @@ export function ProjectOverlay({ slug, children }: { slug: string; children: Rea
   );
 
   // Lock page scroll while open (keeps the section/stack exactly where it was)
-  useEffect(() => {
-    getLenis()?.stop();
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      getLenis()?.start();
-      document.documentElement.style.overflow = "";
-    };
-  }, []);
+  useEffect(() => lockScroll(), []);
 
   const close = useCallback(() => {
     if (state.current !== "open") return;

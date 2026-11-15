@@ -21,6 +21,9 @@ export function Hero() {
               ./contact
             </a>
           </div>
+          <p className="mt-6 font-mono text-xs text-muted">
+            psst — press <kbd className="rounded border border-line px-1.5 py-0.5 text-fg">Ctrl K</kbd> to talk to my terminal
+          </p>
         </div>
         <div
           aria-hidden="true"

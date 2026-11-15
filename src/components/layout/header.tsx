@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { site, type SectionId } from "@/content/site";
 import { Logo } from "@/components/brand/logo";
-import { getLenis } from "@/lib/lenis";
+import { OPEN_TERMINAL, lockScroll, scrollToSection } from "@/lib/lenis";
 
 /** Nav left, logo right. Hides on scroll down, returns on scroll up, highlights the current section. */
 export function Header() {
@@ -45,13 +45,11 @@ export function Header() {
   // Mobile menu: pause smooth scroll, close on Escape
   useEffect(() => {
     if (!open) return;
-    getLenis()?.stop();
-    document.documentElement.style.overflow = "hidden";
+    const unlock = lockScroll();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     window.addEventListener("keydown", onKey);
     return () => {
-      getLenis()?.start();
-      document.documentElement.style.overflow = "";
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -59,12 +57,7 @@ export function Header() {
   const goTo = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     setOpen(false);
-    const lenis = getLenis();
-    // wait a frame so the menu effect cleanup has restarted Lenis
-    requestAnimationFrame(() => {
-      if (lenis) lenis.scrollTo(`#${id}`);
-      else document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-    });
+    scrollToSection(id); // runs next frame, after the menu has released the scroll lock
   };
 
   return (
@@ -108,10 +101,21 @@ export function Header() {
           </ul>
         </nav>
 
-        {/* Right: logo — the preloader logo lands exactly here */}
-        <a href={`${base}#hero`} data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
-          <Logo className="size-10" />
-        </a>
+        {/* Right: terminal launcher + logo — the preloader logo lands exactly on the logo */}
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event(OPEN_TERMINAL))}
+            aria-label="Open command terminal"
+            className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+          >
+            <span className="text-accent">&gt;_</span>
+            <kbd className="hidden font-mono sm:inline">Ctrl K</kbd>
+          </button>
+          <a href={`${base}#hero`} data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
+            <Logo className="size-10" />
+          </a>
+        </div>
       </div>
 
       {/* Mobile menu */}

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import { Preloader } from "@/components/preloader/preloader";
+import { CommandTerminal } from "@/components/terminal/command-terminal";
 import { site } from "@/content/site";
 import "./globals.css";
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children, modal }: LayoutProps<"/">) {
           <Preloader />
           {children}
           {modal}
+          <CommandTerminal />
         </SmoothScroll>
       </body>
     </html>

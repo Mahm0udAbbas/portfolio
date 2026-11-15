@@ -110,7 +110,7 @@ export const site = {
       stack: ["React", "Redux", "REST"],
       links: {},
     },
-  ] satisfies Project[],
+  ] satisfies Project[] as Project[],
 
   skills: [
     { label: "Frontend", items: ["React", "Next.js", "TypeScript", "JavaScript", "HTML", "CSS", "Tailwind"] },
@@ -134,7 +134,7 @@ export const site = {
       period: "2022 — 2024",
       points: ["TODO: Impact you had", "TODO: Something you built or led"],
     },
-  ] satisfies Experience[],
+  ] satisfies Experience[] as Experience[],
 
   contact: {
     email: "you@example.com", // TODO
@@ -157,5 +157,5 @@ export type Site = typeof site;
 
 export const getProject = (slug: string) => {
   const index = site.projects.findIndex((p) => p.slug === slug);
-  return index === -1 ? null : { project: site.projects[index] as Project, index };
+  return index === -1 ? null : { project: site.projects[index], index };
 };
