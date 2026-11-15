@@ -7,7 +7,7 @@ Exports
   public/models/ski-run.glb  - "Terrain" (vertex-coloured snow/rock), "IcePath", "Pine_*" (shared mesh),
                                "Gate_<i>" (checkpoint gates), "SummitFlag", and "Skier" (at the origin:
                                "SkierBody" leans/crouches, "SkiL"/"SkiR", forward = +Y / three -Z)
-  public/models/ski-path.json - sampled centre line in three.js coords + checkpoints / jump / finish
+  src/components/experience/ski-path.json - sampled centre line in three.js coords + checkpoints / jump / finish
 Re-run when the number of experience entries changes (CHECKPOINTS below).
 """
 import json
@@ -242,7 +242,7 @@ path_json = {
     "summit": [round(v, 3) for v in (PEAKS[len(CHECKPOINTS) - 1][0], height(*PEAKS[len(CHECKPOINTS) - 1][:2]),
                                      -PEAKS[len(CHECKPOINTS) - 1][1])],
 }
-with open(ROOT + "/public/models/ski-path.json", "w", encoding="utf-8") as fh:
+with open(ROOT + "/src/components/experience/ski-path.json", "w", encoding="utf-8") as fh:
     json.dump(path_json, fh, separators=(",", ":"))
 
 # ── Previews: wide shot of the range + close-up of the skier on the slope ─────

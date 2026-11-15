@@ -92,6 +92,17 @@ html[data-preloading] [data-logo-target] svg {
   animation: blink 1s steps(1) infinite;
 }
 
+/* Ski run: checkpoint cards slide in as the skier reaches them */
+@keyframes ski-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+}
+.ski-card {
+  animation: ski-card-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 /* Phone hero: the pre-rendered toys bob gently */
 @keyframes toys-float {
   50% {
