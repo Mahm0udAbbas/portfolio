@@ -32,10 +32,12 @@ const TRAVEL = { descent: "skiing down from", lift: "chairlift up to", summit: "
 
 function SkiRun({ entries }: { entries: Experience[] }) {
   const wrap = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const progress = useRef(0);
   const [near, setNear] = useState(false);
   const [active, setActive] = useState(false);
-  const [card, setCard] = useState<Card>({ kind: "intro" });
+  const [card, setCard] = useState<Card>({ kind: "intro" }); // where the scroll is
+  const [shown, setShown] = useState<Card>({ kind: "intro" }); // what the panel currently displays
   const count = Math.min(entries.length, CHECKPOINTS);
 
   // Swapping from the server-rendered timeline changes the page height → re-measure everything.
@@ -78,36 +80,71 @@ function SkiRun({ entries }: { entries: Experience[] }) {
     { scope: wrap, dependencies: [count] },
   );
 
+  // Cross-fade: the current panel fades + blurs out, then the next one fades + sharpens in.
+  useEffect(() => {
+    if (keyOf(card) === keyOf(shown) || !panel.current) return;
+    const tween = gsap.to(panel.current, {
+      autoAlpha: 0,
+      y: -14,
+      filter: "blur(8px)",
+      duration: 0.35,
+      ease: "power2.in",
+      overwrite: true,
+      onComplete: () => setShown(card),
+    });
+    return () => {
+      tween.kill();
+    };
+  }, [card, shown]);
+  useEffect(() => {
+    if (!panel.current) return;
+    gsap.fromTo(
+      panel.current,
+      { autoAlpha: 0, y: 22, filter: "blur(10px)" },
+      { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out", overwrite: true },
+    );
+  }, [shown]);
+
   const dots = (current: number) => (
     <div className="mb-4 flex items-center gap-2" aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
         <span
           key={i}
-          className={`h-2 rounded-full transition-all duration-500 ${i === current ? "w-6 bg-accent" : i < current ? "w-2 bg-accent/60" : "w-2 bg-line"}`}
+          className={`h-2 rounded-full transition-all duration-500 ${i === current ? "w-6 bg-accent" : i < current ? "w-2 bg-accent/60" : "w-2 bg-fg/15"}`}
         />
       ))}
     </div>
   );
 
+  // Frosted glass: translucent white, strong backdrop blur, a light rim and a soft top highlight
+  const glass =
+    "border border-white/60 bg-gradient-to-br from-white/55 via-white/35 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_18px_50px_-18px_rgba(17,19,24,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]";
+
   return (
-    <div ref={wrap} className="relative h-[500vh]">
+    <div ref={wrap} className="relative h-[800vh]">
       <div className="sticky top-0 h-dvh overflow-hidden">
         <div className="absolute inset-0" aria-hidden="true">
           {near && <SkiCanvas active={active} progress={progress} reduced={false} />}
         </div>
 
         <div className="pointer-events-none relative mx-auto flex h-full max-w-6xl items-center px-8 pt-(--header-h)">
-          {card.kind === "travel" ? (
-            <div className="ski-card pointer-events-auto self-start mt-[calc(var(--header-h)+1.5rem)] rounded-full border border-line bg-surface/80 px-4 py-2 font-mono text-xs text-muted backdrop-blur-md">
-              <span className="text-accent-strong">❯</span> {TRAVEL[card.via]}{" "}
-              <span className="text-fg">{entries[Math.min(card.index, count - 1)]?.company}</span>
-            </div>
-          ) : (
           <div
-            key={keyOf(card)}
-            className="ski-card pointer-events-auto w-full max-w-md rounded-2xl border border-line bg-surface/80 p-7 shadow-[0_30px_70px_-30px_rgba(17,19,24,0.35)] backdrop-blur-md"
+            ref={panel}
+            aria-live="polite"
+            className={
+              shown.kind === "travel"
+                ? `pointer-events-auto mt-[calc(var(--header-h)+1.5rem)] self-start rounded-full px-4 py-2 font-mono text-xs text-fg/70 ${glass}`
+                : `pointer-events-auto w-full max-w-md rounded-3xl p-7 ${glass}`
+            }
           >
-            {card.kind === "intro" && (
+            {shown.kind === "travel" && (
+              <>
+                <span className="text-accent-strong">&#x276F;</span> {TRAVEL[shown.via]}{" "}
+                <span className="text-fg">{entries[Math.min(shown.index, count - 1)]?.company}</span>
+              </>
+            )}
+
+            {shown.kind === "intro" && (
               <>
                 <p className="font-mono text-sm text-muted">
                   <span className="text-accent-strong">~/</span>experience
@@ -118,20 +155,20 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                 <p className="mt-3 font-mono text-sm text-muted">
                   <span className="text-accent-strong">$</span> git log --reverse
                 </p>
-                <p className="mt-6 text-fg/75">
-                  From civil engineering to shipping React products — scroll to ski it, summit to summit. Every
+                <p className="mt-6 text-fg/80">
+                  From civil engineering to shipping React products &mdash; scroll to ski it, summit to summit. Every
                   peak is a chapter, each one higher than the last.
                 </p>
-                <p className="mt-6 font-mono text-xs text-muted">scroll ↓</p>
+                <p className="mt-6 font-mono text-xs text-muted">scroll &darr;</p>
               </>
             )}
 
-            {card.kind === "entry" &&
+            {shown.kind === "entry" &&
               (() => {
-                const e = entries[card.index];
+                const e = entries[shown.index];
                 return (
                   <>
-                    {dots(card.index)}
+                    {dots(shown.index)}
                     <p className="font-mono text-sm">
                       <span className="text-accent-strong">commit {e.hash}</span>
                       <span className="text-muted"> ({e.period})</span>
@@ -140,7 +177,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                       {e.role} <span className="text-muted">@ {e.company}</span>
                     </h3>
                     {e.location && <p className="mt-1 font-mono text-xs text-muted">{e.location}</p>}
-                    <ul className="mt-4 space-y-2 text-sm text-fg/80">
+                    <ul className="mt-4 space-y-2 text-sm text-fg/85">
                       {e.points.map((pt) => (
                         <li key={pt} className="flex gap-3">
                           <span className="font-mono text-accent-strong">+</span>
@@ -152,7 +189,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                 );
               })()}
 
-            {card.kind === "end" && (
+            {shown.kind === "end" && (
               <>
                 {dots(count)}
                 <p className="font-mono text-sm text-muted">
@@ -161,7 +198,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                 <h3 className="mt-3 text-3xl font-semibold tracking-tight">
                   Next checkpoint: <span className="text-accent-strong">your team?</span>
                 </h3>
-                <p className="mt-3 text-fg/75">The run doesn&apos;t end here. Let&apos;s find the next peak together.</p>
+                <p className="mt-3 text-fg/80">The run doesn&apos;t end here. Let&apos;s find the next peak together.</p>
                 <button
                   type="button"
                   onClick={() => scrollToSection("contact")}
@@ -172,7 +209,6 @@ function SkiRun({ entries }: { entries: Experience[] }) {
               </>
             )}
           </div>
-          )}
         </div>
       </div>
     </div>

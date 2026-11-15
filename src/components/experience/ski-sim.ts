@@ -124,6 +124,7 @@ export class SkiRunSim {
   private arrival: THREE.Vector3[] = [];
 
   private lastP = 0;
+  private smoothP = 0;
   private yaw = 0;
   private roll = 0;
   private skatePhase = 0;
@@ -251,15 +252,24 @@ export class SkiRunSim {
   private buildSnow(reduced: boolean) {
     const a = new Float32Array(SNOW_COUNT * 3);
     for (let i = 0; i < SNOW_COUNT; i++) {
-      a[i * 3] = (Math.random() - 0.5) * 120;
-      a[i * 3 + 1] = Math.random() * 60;
-      a[i * 3 + 2] = (Math.random() - 0.5) * 120;
+      a[i * 3] = (Math.random() - 0.5) * 90;
+      a[i * 3 + 1] = (Math.random() - 0.5) * 70;
+      a[i * 3 + 2] = (Math.random() - 0.5) * 90;
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(a, 3));
     this.snow = new THREE.Points(
       g,
-      new THREE.PointsMaterial({ color: "#FFFFFF", size: 0.22, transparent: true, opacity: 0.85, depthWrite: false }),
+      new THREE.PointsMaterial({
+        color: "#FFFFFF",
+        size: 4.5,
+        sizeAttenuation: false, // flakes stay visible from the high camera
+        map: flakeTexture(),
+        alphaTest: 0.02,
+        transparent: true,
+        opacity: 0.9,
+        depthWrite: false,
+      }),
     );
     this.snow.visible = !reduced;
     this.snow.frustumCulled = false;
@@ -297,12 +307,15 @@ export class SkiRunSim {
   }
 
   // ── per frame ────────────────────────────────────────────────────────────
-  update(p: number, dt: number, t: number) {
+  update(target: number, dt: number, t: number) {
     const skier = this.skier;
     const cam = this.camera;
     if (!skier || !cam) return;
     const snap = this.snapNext;
     this.snapNext = false;
+    // the run eases toward where you scrolled, so the skier glides instead of jumping
+    this.smoothP += (target - this.smoothP) * (snap ? 1 : damp(1.6, dt));
+    const p = this.smoothP;
     const dp = p - this.lastP;
     this.lastP = p;
     const { index, seg, t: u } = segmentAt(p);
@@ -393,9 +406,9 @@ export class SkiRunSim {
     }
 
     // ── apply transform + pose (smoothed) ──
-    const kPose = snap ? 1 : damp(10, dt);
-    this.yaw += angleDiff(travelYaw, this.yaw) * (snap ? 1 : damp(8, dt));
-    this.roll += (carveRoll - this.roll) * (snap ? 1 : damp(7, dt));
+    const kPose = snap ? 1 : damp(6, dt);
+    this.yaw += angleDiff(travelYaw, this.yaw) * (snap ? 1 : damp(5, dt));
+    this.roll += (carveRoll - this.roll) * (snap ? 1 : damp(4.5, dt));
     for (const [name, j] of this.joints) {
       const target = pose[name] ?? [0, 0, 0];
       j.rotation.x += (target[0] - j.rotation.x) * kPose;
@@ -435,7 +448,7 @@ export class SkiRunSim {
       want.lerp(OVERVIEW_POS, w);
       look.lerp(OVERVIEW_LOOK, w);
     }
-    const kc = snap ? 1 : damp(zoom > 0.02 ? 6 : 3.2, dt);
+    const kc = snap ? 1 : damp(zoom > 0.02 ? 3.2 : 1.8, dt);
     this.camPos.lerp(want, kc);
     this.camLook.lerp(look, kc);
     cam.position.copy(this.camPos);
@@ -465,15 +478,15 @@ export class SkiRunSim {
     if (seg.kind === "summit" && dp > 0 && u > SUMMIT_ARRIVE - 0.02 && u < SUMMIT_ARRIVE + 0.01) this.emit(20, 3);
     this.stepSpray(dt);
 
-    // snowfall: a box of flakes that travels with the skier
+    // snowfall: a box of flakes that travels with the camera (so there is always snow in front of you)
     if (this.snow.visible) {
-      this.snow.position.copy(pos);
+      this.snow.position.copy(this.camPos).lerp(pos, 0.35);
       const attr = this.snow.geometry.attributes.position as THREE.BufferAttribute;
       const arr = attr.array as Float32Array;
       for (let i = 0; i < SNOW_COUNT; i++) {
         arr[i * 3 + 1] -= dt * (1.4 + (i % 9) * 0.15);
         arr[i * 3] += Math.sin(t * 0.5 + i) * dt * 0.6;
-        if (arr[i * 3 + 1] < -10) arr[i * 3 + 1] = 55;
+        if (arr[i * 3 + 1] < -35) arr[i * 3 + 1] = 35;
       }
       attr.needsUpdate = true;
     }
@@ -515,6 +528,7 @@ export class SkiRunSim {
   dispose() {
     for (const o of [this.ring, this.spray, this.snow, ...this.tracks]) {
       o?.geometry.dispose();
+      ((o?.material as THREE.PointsMaterial | undefined)?.map as THREE.Texture | null | undefined)?.dispose();
       (o?.material as THREE.Material | undefined)?.dispose();
     }
     this.tracks = [];
@@ -522,6 +536,22 @@ export class SkiRunSim {
       if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
     });
   }
+}
+
+/** Soft round snowflake sprite (canvas-generated, no download). */
+function flakeTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const g = c.getContext("2d")!;
+  const r = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  r.addColorStop(0, "rgba(255,255,255,1)");
+  r.addColorStop(0.45, "rgba(255,255,255,0.8)");
+  r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 32, 32);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /** Terrain: aerial snow from above, tri-planar rock on steep faces (mask R), brighter groomed pistes (mask G). */
@@ -552,8 +582,12 @@ function terrainMaterial(snow: THREE.Texture, rock: THREE.Texture) {
         vec3 rockC = texture2D(uRock, vWPos.zy / 26.0).rgb * bw.x
                    + texture2D(uRock, vWPos.xz / 26.0).rgb * bw.y
                    + texture2D(uRock, vWPos.xy / 26.0).rgb * bw.z;
-        vec3 groomed = mix(snowC, vec3(0.955, 0.966, 0.985), vMask.g * 0.8);
-        diffuseColor.rgb *= mix(groomed, rockC, clamp(vMask.r, 0.0, 1.0));`,
+        // the aerial snow photo is a bluish grey (~0.53): lift it to fresh, bright snow, keep its grain
+        snowC = mix(clamp(snowC * 1.55, 0.0, 1.0), vec3(0.97, 0.98, 1.0), 0.45);
+        vec3 groomed = mix(snowC, vec3(0.975, 0.982, 0.995), vMask.g * 0.8);
+        // rock only on genuinely steep faces; anything facing up holds snow
+        float rockAmt = smoothstep(0.35, 0.9, vMask.r) * (1.0 - smoothstep(0.72, 0.9, normalize(vWNormal).y));
+        diffuseColor.rgb *= mix(groomed, rockC, rockAmt);`,
       );
   };
   return m;
