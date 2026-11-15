@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
+import { Preloader } from "@/components/preloader/preloader";
 import { site } from "@/content/site";
 import "./globals.css";
 
@@ -21,9 +22,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${jetbrainsMono.variable} antialiased`}>
+    <html
+      lang="en"
+      data-preloading=""
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${jetbrainsMono.variable} antialiased`}
+    >
       <body className="min-h-dvh">
-        <SmoothScroll>{children}</SmoothScroll>
+        <noscript>
+          <style>{`#preloader{display:none!important}html[data-preloading]{overflow:auto}html[data-preloading] main,html[data-preloading] [data-logo-target] svg{opacity:1}`}</style>
+        </noscript>
+        <SmoothScroll>
+          <Preloader />
+          {children}
+        </SmoothScroll>
       </body>
     </html>
   );

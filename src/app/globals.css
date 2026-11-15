@@ -49,6 +49,25 @@ body {
   outline-offset: 3px;
 }
 
+/* ── Preloader state ─────────────────────────────────────────────
+   <html data-preloading> is server-rendered so the very first paint is the terminal, not the page.
+   The preloader removes it when done. Failsafe: if JS never runs, unlock after 12s. */
+html[data-preloading] {
+  overflow: hidden;
+  animation: preload-failsafe 0s 12s forwards;
+}
+html[data-preloading] main {
+  opacity: 0;
+}
+html[data-preloading] [data-logo-target] svg {
+  opacity: 0;
+}
+@keyframes preload-failsafe {
+  to {
+    overflow: auto;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
