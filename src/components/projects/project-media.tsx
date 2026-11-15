@@ -1,6 +1,6 @@
 import Image from "next/image";
 import type { Project } from "@/content/site";
-import { PROJECT_TINTS } from "@/lib/project-origin";
+import { PROJECT_TINTS } from "@/lib/project-tints";
 
 /**
  * Project preview inside a mock browser frame.

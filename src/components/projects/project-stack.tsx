@@ -6,7 +6,6 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import type { Project } from "@/content/site";
-import { setProjectOrigin } from "@/lib/project-origin";
 import { ProjectMedia } from "./project-media";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -95,7 +94,12 @@ function ProjectCard({ project: p, index: i }: { project: Project; index: number
         href={`/projects/${p.slug}`}
         scroll={false}
         data-project-card={p.slug}
-        onClick={(e) => setProjectOrigin(e.currentTarget.getBoundingClientRect())}
+        onClick={(e) => {
+          // Drop the hover pop/tilt so the overlay flips from the card's resting position.
+          gsap.killTweensOf(e.currentTarget);
+          gsap.set(e.currentTarget, { y: 0, rotateX: 0, rotateY: 0 });
+          e.currentTarget.querySelector<HTMLVideoElement>("video[data-preview]")?.pause();
+        }}
         onPointerEnter={onEnter}
         onPointerMove={onMove}
         onPointerLeave={onLeave}
