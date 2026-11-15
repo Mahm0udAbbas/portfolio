@@ -43,7 +43,7 @@ export function zoomAt(kind: SegKind, t: number) {
 }
 
 /** Natural seconds to play a whole segment of each kind when gliding on its own. */
-const SECONDS: Record<SegKind, number> = { intro: 2, summit: 4.5, descent: 11, lift: 9, end: 3 };
+const SECONDS: Record<SegKind, number> = { intro: 2, summit: 5, descent: 14, lift: 11, end: 3.5 };
 const REST_T = 0.32; // where a summit "rests" (arrived, card up)
 
 /** Progress points where the run can rest: each summit (card shown) and the end. */

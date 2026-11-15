@@ -134,6 +134,7 @@ export class SkiRunSim {
   private smoothP = 0;
   private yaw = 0;
   private roll = 0;
+  private pitch = 0;
   private skatePhase = 0;
   private reachL = 0;
   private reachR = 0;
@@ -145,6 +146,12 @@ export class SkiRunSim {
   // coarse terrain height grid (max height per 4 m cell) for camera collision
   private hm: Float32Array | null = null;
   private hmBox = { x0: 0, z0: 0, nx: 0, nz: 0, cell: 4 };
+  // exact ground: the terrain is a regular 2 m grid, so heights per grid vertex + bilinear = the real surface
+  private surf: Float32Array | null = null;
+  private surfBox = { x0: 0, z0: 0, nx: 0, nz: 0, cell: 2 };
+  private skiL?: THREE.Object3D;
+  private skiR?: THREE.Object3D;
+  private contactOffset = 0;
 
   // ── setup ────────────────────────────────────────────────────────────────
   attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean) {
@@ -173,6 +180,8 @@ export class SkiRunSim {
       const j = scene.getObjectByName(n);
       if (j) this.joints.set(n, j);
     }
+    this.skiL = scene.getObjectByName("SkiL") ?? undefined;
+    this.skiR = scene.getObjectByName("SkiR") ?? undefined;
     const pelvis = this.joints.get("Pelvis");
     if (pelvis) {
       pelvis.userData.restY ??= pelvis.position.y; // survive re-attach (Strict Mode / HMR)
@@ -234,6 +243,38 @@ export class SkiRunSim {
     for (let k = 0; k < hm.length; k++) if (hm[k] < -1e8) hm[k] = hm[Math.max(0, k - 1)];
     this.hm = hm;
     this.hmBox = { x0: bb.min.x, z0: bb.min.z, nx, nz, cell };
+
+    const c2 = 2;
+    const sx = Math.round((bb.max.x - bb.min.x) / c2) + 1;
+    const sz = Math.round((bb.max.z - bb.min.z) / c2) + 1;
+    const surf = new Float32Array(sx * sz).fill(NaN);
+    for (let i = 0; i < posAttr.count; i++) {
+      v.fromBufferAttribute(posAttr, i).applyMatrix4(terrain.matrixWorld);
+      const ix = Math.round((v.x - bb.min.x) / c2);
+      const iz = Math.round((v.z - bb.min.z) / c2);
+      if (ix >= 0 && iz >= 0 && ix < sx && iz < sz) surf[iz * sx + ix] = v.y;
+    }
+    for (let k = 0; k < surf.length; k++) if (Number.isNaN(surf[k])) surf[k] = surf[Math.max(0, k - 1)] || 0;
+    this.surf = surf;
+    this.surfBox = { x0: bb.min.x, z0: bb.min.z, nx: sx, nz: sz, cell: c2 };
+  }
+
+  /** Height of the snow surface at (x, z) — bilinear over the terrain's own grid. */
+  surfaceAt(x: number, z: number) {
+    const { x0, z0, nx, nz, cell } = this.surfBox;
+    if (!this.surf) return -1e9;
+    const fx = Math.min(Math.max((x - x0) / cell, 0), nx - 1.001);
+    const fz = Math.min(Math.max((z - z0) / cell, 0), nz - 1.001);
+    const ix = Math.floor(fx);
+    const iz = Math.floor(fz);
+    const tx = fx - ix;
+    const tz = fz - iz;
+    const h = this.surf;
+    const a = h[iz * nx + ix];
+    const b = h[iz * nx + ix + 1];
+    const c = h[(iz + 1) * nx + ix];
+    const d = h[(iz + 1) * nx + ix + 1];
+    return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
 
   private groundAt(x: number, z: number) {
@@ -338,7 +379,10 @@ export class SkiRunSim {
             const p = pts[i + k];
             const yaw = yawAlong(pts, (i + k) / (pts.length - 1));
             side.set(Math.cos(yaw), 0, -Math.sin(yaw));
-            return [-0.05, 0.05].map((e) => p.clone().addScaledVector(side, off + e).setY(p.y + (air ? -5 : 0.03)));
+            return [-0.05, 0.05].map((e) => {
+              const q = p.clone().addScaledVector(side, off + e);
+              return q.setY(air ? q.y - 5 : this.surfaceAt(q.x, q.z) + 0.025);
+            });
           });
           for (const k of [0, 2, 3, 0, 3, 1]) pos.push(quad[k].x, quad[k].y, quad[k].z);
         }
@@ -364,7 +408,7 @@ export class SkiRunSim {
     const snap = this.snapNext;
     this.snapNext = false;
     // the run eases toward where you scrolled, so the skier glides instead of jumping
-    this.smoothP += (target - this.smoothP) * (snap ? 1 : damp(1.6, dt));
+    this.smoothP += (target - this.smoothP) * (snap ? 1 : damp(1.15, dt));
     const p = this.smoothP;
     const dp = p - this.lastP;
     this.lastP = p;
@@ -375,6 +419,8 @@ export class SkiRunSim {
     let tucked = false;
     let carveRoll = 0;
     let travelYaw = this.yaw;
+    let pitch = 0;
+    let ramp = 0; // extra ground height while riding up the kicker
     let chairPos: THREE.Vector3 | null = null;
     let chairYaw = 0;
     const pos = this.pos;
@@ -404,6 +450,9 @@ export class SkiRunSim {
       const pts = DESC[seg.i];
       along(pts, u, pos);
       travelYaw = yawAlong(pts, u);
+      along(pts, u - 0.006, _a);
+      along(pts, u + 0.006, _b);
+      pitch = Math.atan2(_b.y - _a.y, Math.hypot(_b.x - _a.x, _b.z - _a.z));
       // curvature (+ = turning left) → lean INTO the turn; each new turn → pole plant on the new inside hand
       const curv = angleDiff(yawAlong(pts, u + 0.02), yawAlong(pts, u - 0.02));
       const turn = Math.max(-1, Math.min(1, curv * 2.4));
@@ -418,6 +467,12 @@ export class SkiRunSim {
       this.reachR *= Math.exp(-2.8 * dt);
       // sink through the turn, rise (unweight) through the transition
       pose = carvePose(turn, this.roll, 0.02 + 0.38 * Math.abs(turn), this.reachL, this.reachR);
+      // ride up the kicker's 1.3 m ramp just before the lip
+      const RAMP = 0.024;
+      if (seg.i === 0 && u > JUMP_A - RAMP && u <= JUMP_A) {
+        ramp = 1.3 * ((u - (JUMP_A - RAMP)) / RAMP);
+        pitch = 0.35;
+      }
       if (seg.i === 0 && u > JUMP_A - 0.03 && u < JUMP_B + 0.02) {
         // the career-switch jump: crouch on the kicker, arc through the air in a tuck, absorb the landing
         const ja = (u - JUMP_A) / (JUMP_B - JUMP_A);
@@ -428,6 +483,7 @@ export class SkiRunSim {
           pose = TUCK;
           tucked = true;
           carveRoll = 0;
+          pitch = -0.15 + 0.3 * ja;
         } else pose = carvePose(0, 0, 0.55, 0, 0);
       }
     } else if (seg.kind === "lift") {
@@ -474,8 +530,31 @@ export class SkiRunSim {
       const drop = seated ? 0 : 0.44 * (1 - Math.cos(th)) + 0.42 * (1 - Math.cos(sh));
       pelvis.position.y = this.pelvisRestY - drop;
     }
+    this.pitch += (pitch - this.pitch) * (snap ? 1 : damp(6, dt));
     skier.position.copy(pos);
-    skier.rotation.set(0, this.yaw, this.roll, "YXZ");
+    skier.rotation.set(this.pitch, this.yaw, this.roll, "YXZ");
+    // the body stays balanced over the skis instead of tipping with the slope
+    const spine = this.joints.get("Spine");
+    if (spine && !seated) spine.rotation.x -= this.pitch * 0.55;
+
+    // Ski–snow contact: measure where both skis really are after posing, and rest them ON the snow
+    if (!seated && !tucked && this.skiL && this.skiR && this.surf) {
+      skier.updateMatrixWorld(true);
+      const pl = this.skiL.getWorldPosition(_a);
+      const gl = this.surfaceAt(pl.x, pl.z);
+      const yl = pl.y;
+      const pr = this.skiR.getWorldPosition(_b);
+      const gr = this.surfaceAt(pr.x, pr.z);
+      const yr = pr.y;
+      // ski centre sits 1.1 cm above its base; edged skis dip by roughly half their width
+      const clear = 0.016 + Math.abs(this.roll) * 0.05;
+      const want = Math.max(gl + ramp + clear - yl, gr + ramp + clear - yr);
+      this.contactOffset += (want - this.contactOffset) * (snap ? 1 : damp(14, dt));
+      skier.position.y += this.contactOffset;
+      pos.y = skier.position.y;
+    } else if (tucked) {
+      this.contactOffset *= Math.exp(-6 * dt);
+    }
 
     if (this.chair) {
       this.chair.visible = !!chairPos;
@@ -490,7 +569,7 @@ export class SkiRunSim {
     const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const side = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const want = pos.clone().addScaledVector(fwd, -14).addScaledVector(side, 4).add(new THREE.Vector3(0, 10, 0));
-    const look = pos.clone().addScaledVector(fwd, 6).add(new THREE.Vector3(0, 0.6, 0));
+    const look = pos.clone().addScaledVector(fwd, 2).add(new THREE.Vector3(0, 0.9, 0)); // keep the skier centred
     const close = pos.clone().addScaledVector(side, 3.3).addScaledVector(fwd, 1.6).add(new THREE.Vector3(0, 1.65, 0));
     want.lerp(close, zoom);
     look.lerp(pos.clone().add(new THREE.Vector3(0, 1.2, 0)), zoom);
@@ -502,9 +581,9 @@ export class SkiRunSim {
     }
     // never let the camera dip into the mountain
     want.y = Math.max(want.y, this.groundAt(want.x, want.z) + (zoom > 0.5 ? 1.2 : 3.5));
-    const kc = snap ? 1 : damp(zoom > 0.02 ? 3.2 : 1.8, dt);
-    this.camPos.lerp(want, kc);
-    this.camLook.lerp(look, kc);
+    // position eases (cinematic), but the aim tracks the skier tightly so it never drifts out of frame
+    this.camPos.lerp(want, snap ? 1 : damp(zoom > 0.02 ? 3.5 : 2.6, dt));
+    this.camLook.lerp(look, snap ? 1 : damp(9, dt));
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
 
@@ -527,7 +606,9 @@ export class SkiRunSim {
 
     // snow spray off the edges while carving forward, and a burst when stopping at a summit
     if (seg.kind === "descent" && dp > 0 && !tucked) {
-      this.emit(Math.min(8, 1 + Math.floor(Math.abs(this.roll) * 14 + dp * 3000)), 2.2);
+      this.emit(2, 0.7); // the skis always kick up a little powder
+      const edge = Math.floor(Math.abs(this.roll) * 12 + dp * 2500);
+      if (edge > 0) this.emit(Math.min(8, edge), 2.2);
     }
     if (seg.kind === "summit" && dp > 0 && u > SUMMIT_ARRIVE - 0.02 && u < SUMMIT_ARRIVE + 0.01) this.emit(20, 3);
     this.stepSpray(dt);
@@ -554,7 +635,7 @@ export class SkiRunSim {
       const i = this.sprayNext;
       this.sprayNext = (i + 1) % SPRAY_COUNT;
       arr[i * 3] = this.pos.x + back.x * 0.7 + (Math.random() - 0.5) * 0.5;
-      arr[i * 3 + 1] = this.pos.y + 0.1;
+      arr[i * 3 + 1] = this.pos.y + 0.04;
       arr[i * 3 + 2] = this.pos.z + back.z * 0.7 + (Math.random() - 0.5) * 0.5;
       const spread = Math.random();
       this.sprayVel[i * 3] = (back.x * 0.5 + side.x * (0.6 + spread)) * power;

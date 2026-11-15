@@ -154,7 +154,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
     "border border-white/60 bg-gradient-to-br from-white/55 via-white/35 to-white/20 backdrop-blur-2xl backdrop-saturate-150 shadow-[0_18px_50px_-18px_rgba(17,19,24,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]";
 
   return (
-    <div ref={wrap} className="relative h-[800vh]">
+    <div ref={wrap} className="relative h-[950vh]">
       <div className="sticky top-0 h-dvh overflow-hidden">
         <div className="absolute inset-0" aria-hidden="true">
           {near && <SkiCanvas active={active} progress={progress} reduced={false} />}
