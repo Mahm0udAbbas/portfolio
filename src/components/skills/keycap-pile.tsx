@@ -13,6 +13,7 @@ useGLTF.preload(MODEL, DRACO);
 
 const unitsFor = (name: string) => (name.length <= 5 ? 1 : name.length <= 9 ? 1.5 : 2);
 const MESH: Record<number, string> = { 1: "Key1u", 1.5: "Key15u", 2: "Key2u" };
+const GRAVITY = 20;
 const CAP_TOP = 0.595; // just above the dished top (Blender HEIGHT 0.62 minus the dish)
 
 /** Deterministic pseudo-random in [0, 1) so renders stay pure. */
@@ -174,21 +175,31 @@ class Arranger {
     bodies.forEach((b) => b.setBodyType(kinematic, true));
   }
 
-  explode(bodies: Map<string, RapierRigidBody>, dynamic: number) {
+  /**
+   * Scatter: every key gets its own landing spot spread over the whole play area (jittered grid,
+   * shuffled so neighbours fly apart) and is launched on a ballistic arc that lands it there, spinning.
+   */
+  explode(bodies: Map<string, RapierRigidBody>, dynamic: number, bounds: { w: number; d: number }, gravity: number) {
     this.mode = "play";
-    bodies.forEach((b) => {
+    const list = [...bodies.values()];
+    const cols = Math.ceil(Math.sqrt(list.length * (bounds.w / bounds.d)));
+    const rows = Math.ceil(list.length / cols);
+    const slots = Array.from({ length: cols * rows }, (_, i) => i).sort(() => Math.random() - 0.5);
+    const margin = 0.9;
+
+    list.forEach((b, i) => {
       b.setBodyType(dynamic, true);
+      const slot = slots[i];
+      const cx = ((slot % cols) + 0.2 + Math.random() * 0.6) / cols; // 0..1 with jitter
+      const cz = (Math.floor(slot / cols) + 0.2 + Math.random() * 0.6) / rows;
+      const dest = {
+        x: -bounds.w + margin + cx * (bounds.w - margin) * 2,
+        z: -bounds.d + margin + cz * (bounds.d - margin) * 2,
+      };
       const p = b.translation();
-      const m = b.mass();
-      const out = new THREE.Vector3(p.x, 0, p.z + 0.001).normalize();
-      b.applyImpulse(
-        { x: out.x * m * (3 + Math.random() * 4), y: m * (8 + Math.random() * 6), z: out.z * m * (2 + Math.random() * 3) },
-        true,
-      );
-      b.applyTorqueImpulse(
-        { x: (Math.random() - 0.5) * 2 * m, y: (Math.random() - 0.5) * 2 * m, z: (Math.random() - 0.5) * 2 * m },
-        true,
-      );
+      const flight = 0.85 + Math.random() * 0.45; // seconds in the air
+      b.setLinvel({ x: (dest.x - p.x) / flight, y: (gravity * flight) / 2, z: (dest.z - p.z) / flight }, true);
+      b.setAngvel({ x: (Math.random() - 0.5) * 18, y: (Math.random() - 0.5) * 14, z: (Math.random() - 0.5) * 18 }, true);
     });
   }
 
@@ -334,16 +345,17 @@ function Pile({
   }, [drag, rapier]);
 
   // Arrange <-> explode when the mode flips (and re-layout on resize while arranged).
-  const maxW = bounds.w * 2 - 0.6;
+  const { w: boundW, d: boundD } = bounds;
+  const maxW = boundW * 2 - 0.6;
   useEffect(() => {
     const { Dynamic, KinematicPositionBased } = rapier.RigidBodyType;
     if (mode === "arranged") {
       drag.release();
       arranger.arrange(bodies.current, layoutTargets(skills, maxW), KinematicPositionBased);
     } else if (arranger.mode === "arranged") {
-      arranger.explode(bodies.current, Dynamic);
+      arranger.explode(bodies.current, Dynamic, { w: boundW, d: boundD }, GRAVITY);
     }
-  }, [mode, maxW, skills, arranger, drag, rapier]);
+  }, [mode, maxW, boundW, boundD, skills, arranger, drag, rapier]);
 
   // Easter egg: typing a letter makes every skill starting with it hop (or press down when arranged).
   useEffect(() => {
@@ -450,7 +462,7 @@ export default function KeycapPile({
         <Lightformer form="rect" intensity={1.4} position={[6, 2, 4]} scale={[4, 6, 1]} color="#DDE6FF" />
         <Lightformer form="ring" intensity={2} position={[0, 5, -6]} scale={5} color="#C6FF3D" />
       </Environment>
-      <Physics paused={!running} gravity={[0, -20, 0]}>
+      <Physics paused={!running} gravity={[0, -GRAVITY, 0]}>
         <Pile skills={skills} mode={mode} onHover={onHover} />
       </Physics>
     </Canvas>
