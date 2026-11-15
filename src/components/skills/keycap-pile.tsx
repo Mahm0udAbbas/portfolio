@@ -109,6 +109,113 @@ function hop(b: RapierRigidBody) {
   b.applyTorqueImpulse({ x: (Math.random() - 0.5) * 0.6 * m, y: (Math.random() - 0.5) * m, z: (Math.random() - 0.5) * 0.6 * m }, true);
 }
 
+export type PileMode = "play" | "arranged";
+
+/**
+ * Neat keyboard layout: one row per skill group (wrapping when a row is too wide), rows centred.
+ * Returns each skill's resting position (body origin = keycap base centre).
+ */
+function layoutTargets(skills: SkillKey[], maxW: number) {
+  const GAP = 0.12;
+  const rows: SkillKey[][] = [];
+  let row: SkillKey[] = [];
+  let width = 0;
+  let group = -1;
+  for (const s of skills) {
+    const u = unitsFor(s.name);
+    if (s.group !== group || (row.length && width + GAP + u > maxW)) {
+      if (row.length) rows.push(row);
+      row = [];
+      width = 0;
+      group = s.group;
+    }
+    width += (row.length ? GAP : 0) + u;
+    row.push(s);
+  }
+  if (row.length) rows.push(row);
+
+  const pitch = 1.14;
+  const targets = new Map<string, THREE.Vector3>();
+  rows.forEach((r, ri) => {
+    const total = r.reduce((a, s) => a + unitsFor(s.name), 0) + GAP * (r.length - 1);
+    let x = -total / 2;
+    const z = (ri - (rows.length - 1) / 2) * pitch;
+    for (const s of r) {
+      const u = unitsFor(s.name);
+      targets.set(s.name, new THREE.Vector3(x + u / 2, 0, z));
+      x += u + GAP;
+    }
+  });
+  return targets;
+}
+
+/**
+ * Arrange <-> explode. Arranged keys are kinematic and glide (with a little lift) into the layout,
+ * face-up, rippling left to right; letters/clicks press them down like a keyboard.
+ * Explode hands them back to physics with an outward, upward burst.
+ */
+class Arranger {
+  mode: PileMode = "play";
+  private targets = new Map<string, THREE.Vector3>();
+  private order = new Map<string, number>();
+  private press = new Map<string, number>();
+  private t = 0;
+  private q = new THREE.Quaternion();
+  private up = new THREE.Quaternion();
+  private v = new THREE.Vector3();
+  private goal = new THREE.Vector3();
+
+  arrange(bodies: Map<string, RapierRigidBody>, targets: Map<string, THREE.Vector3>, kinematic: number) {
+    this.mode = "arranged";
+    this.targets = targets;
+    this.t = 0;
+    const sorted = [...targets.entries()].sort((a, b) => a[1].x - b[1].x + (a[1].z - b[1].z) * 0.2);
+    sorted.forEach(([name], i) => this.order.set(name, i));
+    bodies.forEach((b) => b.setBodyType(kinematic, true));
+  }
+
+  explode(bodies: Map<string, RapierRigidBody>, dynamic: number) {
+    this.mode = "play";
+    bodies.forEach((b) => {
+      b.setBodyType(dynamic, true);
+      const p = b.translation();
+      const m = b.mass();
+      const out = new THREE.Vector3(p.x, 0, p.z + 0.001).normalize();
+      b.applyImpulse(
+        { x: out.x * m * (3 + Math.random() * 4), y: m * (8 + Math.random() * 6), z: out.z * m * (2 + Math.random() * 3) },
+        true,
+      );
+      b.applyTorqueImpulse(
+        { x: (Math.random() - 0.5) * 2 * m, y: (Math.random() - 0.5) * 2 * m, z: (Math.random() - 0.5) * 2 * m },
+        true,
+      );
+    });
+  }
+
+  pressKey(name: string) {
+    this.press.set(name, 1);
+  }
+
+  update(dt: number, bodies: Map<string, RapierRigidBody>) {
+    if (this.mode !== "arranged") return;
+    this.t += dt;
+    const k = 1 - Math.exp(-7 * dt);
+    bodies.forEach((b, name) => {
+      const target = this.targets.get(name);
+      if (!target || this.t < (this.order.get(name) ?? 0) * 0.035) return;
+      const pr = (this.press.get(name) ?? 0) * Math.exp(-9 * dt);
+      this.press.set(name, pr);
+      const p = b.translation();
+      this.v.set(p.x, p.y, p.z);
+      const dist = Math.hypot(target.x - p.x, target.z - p.z);
+      this.goal.set(target.x, Math.min(2.2, dist * 0.45) - pr * 0.16, target.z);
+      b.setNextKinematicTranslation(this.v.lerp(this.goal, k));
+      const r = b.rotation();
+      b.setNextKinematicRotation(this.q.set(r.x, r.y, r.z, r.w).slerp(this.up, k));
+    });
+  }
+}
+
 type KeycapProps = {
   skill: SkillKey;
   index: number;
@@ -116,7 +223,7 @@ type KeycapProps = {
   spreadX: number;
   font: string;
   onHover: (s: SkillKey | null) => void;
-  onGrab: (e: ThreeEvent<PointerEvent>, body: RapierRigidBody) => void;
+  onGrab: (e: ThreeEvent<PointerEvent>, body: RapierRigidBody, name: string) => void;
   register: (name: string, body: RapierRigidBody | null) => void;
 };
 
@@ -156,7 +263,7 @@ function Keycap({ skill, index, geometry, spreadX, font, onHover, onGrab, regist
         geometry={geometry}
         castShadow
         receiveShadow
-        onPointerDown={(e) => body.current && onGrab(e, body.current)}
+        onPointerDown={(e) => body.current && onGrab(e, body.current, skill.name)}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHovered(true);
@@ -186,7 +293,15 @@ function Keycap({ skill, index, geometry, spreadX, font, onHover, onGrab, regist
   );
 }
 
-function Pile({ skills, onHover }: { skills: SkillKey[]; onHover: (s: SkillKey | null) => void }) {
+function Pile({
+  skills,
+  mode,
+  onHover,
+}: {
+  skills: SkillKey[];
+  mode: PileMode;
+  onHover: (s: SkillKey | null) => void;
+}) {
   const { nodes } = useGLTF(MODEL, DRACO);
   const { rapier } = useRapier();
   const camera = useThree((s) => s.camera);
@@ -194,6 +309,7 @@ function Pile({ skills, onHover }: { skills: SkillKey[]; onHover: (s: SkillKey |
   const pointer = useThree((s) => s.pointer);
   const viewport = useThree((s) => s.viewport);
   const [drag] = useState(() => new DragController());
+  const [arranger] = useState(() => new Arranger());
   const bodies = useRef(new Map<string, RapierRigidBody>());
 
   const vp = viewport.getCurrentViewport(camera, [0, 0, 0]);
@@ -217,27 +333,45 @@ function Pile({ skills, onHover }: { skills: SkillKey[]; onHover: (s: SkillKey |
     };
   }, [drag, rapier]);
 
-  // Easter egg: typing a letter makes every skill starting with it hop.
+  // Arrange <-> explode when the mode flips (and re-layout on resize while arranged).
+  const maxW = bounds.w * 2 - 0.6;
+  useEffect(() => {
+    const { Dynamic, KinematicPositionBased } = rapier.RigidBodyType;
+    if (mode === "arranged") {
+      drag.release();
+      arranger.arrange(bodies.current, layoutTargets(skills, maxW), KinematicPositionBased);
+    } else if (arranger.mode === "arranged") {
+      arranger.explode(bodies.current, Dynamic);
+    }
+  }, [mode, maxW, skills, arranger, drag, rapier]);
+
+  // Easter egg: typing a letter makes every skill starting with it hop (or press down when arranged).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
       if (t && (t.isContentEditable || ["INPUT", "TEXTAREA"].includes(t.tagName))) return;
       const k = e.key.toLowerCase();
-      bodies.current.forEach((b, name) => name.toLowerCase().startsWith(k) && hop(b));
+      bodies.current.forEach((b, name) => {
+        if (!name.toLowerCase().startsWith(k)) return;
+        if (arranger.mode === "arranged") arranger.pressKey(name);
+        else hop(b);
+      });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [arranger]);
 
   useFrame((_, dt) => {
+    arranger.update(dt, bodies.current);
     if (!drag.body) return;
     raycaster.setFromCamera(pointer, camera);
     drag.update(raycaster, dt, bounds);
   });
 
-  const grab = (e: ThreeEvent<PointerEvent>, body: RapierRigidBody) => {
+  const grab = (e: ThreeEvent<PointerEvent>, body: RapierRigidBody, name: string) => {
     e.stopPropagation();
+    if (arranger.mode === "arranged") return arranger.pressKey(name); // keyboard mode: just press it
     drag.start(body, e.point, camera);
     document.body.style.cursor = "grabbing";
   };
@@ -281,10 +415,12 @@ function Pile({ skills, onHover }: { skills: SkillKey[]; onHover: (s: SkillKey |
 export default function KeycapPile({
   skills,
   running,
+  mode,
   onHover,
 }: {
   skills: SkillKey[];
   running: boolean;
+  mode: PileMode;
   onHover: (s: SkillKey | null) => void;
 }) {
   useEffect(() => () => void (document.body.style.cursor = ""), []);
@@ -315,7 +451,7 @@ export default function KeycapPile({
         <Lightformer form="ring" intensity={2} position={[0, 5, -6]} scale={5} color="#C6FF3D" />
       </Environment>
       <Physics paused={!running} gravity={[0, -20, 0]}>
-        <Pile skills={skills} onHover={onHover} />
+        <Pile skills={skills} mode={mode} onHover={onHover} />
       </Physics>
     </Canvas>
   );

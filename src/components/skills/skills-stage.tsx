@@ -6,6 +6,8 @@ import type { SkillGroup } from "@/content/site";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { CAP_COLORS, type SkillKey } from "./keycap-colors";
 
+type PileMode = "play" | "arranged";
+
 // Physics (Rapier wasm) + WebGL only load when the section gets close.
 const KeycapPile = dynamic(() => import("./keycap-pile"), { ssr: false });
 
@@ -20,6 +22,7 @@ export function SkillsStage({ groups }: { groups: SkillGroup[] }) {
   const [near, setNear] = useState(false);
   const [running, setRunning] = useState(false);
   const [hovered, setHovered] = useState<SkillKey | null>(null);
+  const [mode, setMode] = useState<PileMode>("play");
 
   const skills: SkillKey[] = groups.flatMap((g, gi) => g.items.map((name) => ({ name, group: gi, groupLabel: g.label })));
 
@@ -41,7 +44,17 @@ export function SkillsStage({ groups }: { groups: SkillGroup[] }) {
   return (
     <div>
       <div ref={stage} className="relative h-[min(72vh,640px)] w-full touch-pan-y select-none">
-        {near && <KeycapPile skills={skills} running={running} onHover={setHovered} />}
+        {near && <KeycapPile skills={skills} running={running} mode={mode} onHover={setHovered} />}
+
+        <button
+          type="button"
+          onClick={() => setMode((m) => (m === "play" ? "arranged" : "play"))}
+          aria-pressed={mode === "arranged"}
+          className="group absolute right-0 top-0 z-10 flex items-center gap-2 rounded-md border border-line bg-bg/70 px-3 py-2 font-mono text-sm backdrop-blur transition-colors hover:border-accent hover:text-accent"
+        >
+          <span className="text-accent transition-transform group-hover:rotate-90">{mode === "play" ? "⌗" : "✸"}</span>
+          {mode === "play" ? "arrange" : "explode"}
+        </button>
 
         <p className="pointer-events-none absolute bottom-3 left-0 font-mono text-sm" aria-live="polite">
           {hovered ? (
@@ -49,7 +62,11 @@ export function SkillsStage({ groups }: { groups: SkillGroup[] }) {
               <span className="text-accent">❯</span> {hovered.name} <span className="text-muted">· {hovered.groupLabel}</span>
             </>
           ) : (
-            <span className="text-muted">drag · throw · click · or just type a letter</span>
+            <span className="text-muted">
+              {mode === "play"
+                ? "drag · throw · click · or just type a letter"
+                : "type a letter to press its keys · explode to play again"}
+            </span>
           )}
         </p>
       </div>
