@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "lenis/dist/lenis.css";
+
+/* Design tokens — terminal-noir */
+:root {
+  --bg: #0b0b0f;
+  --surface: #14141b;
+  --surface-2: #1c1c25;
+  --line: #2a2a36;
+  --fg: #e8e8ee;
+  --muted: #8b8b9a;
+  --accent: #c6ff3d;
+  --accent-ink: #0b0b0f; /* text on accent */
+  --header-h: 4.5rem;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+html {
+  background: var(--bg);
+  color-scheme: dark;
+  scroll-padding-top: var(--header-h);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.cursor-blink {
+  animation: blink 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-blink {
+    animation: none;
+  }
+}
