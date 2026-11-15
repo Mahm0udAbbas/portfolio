@@ -153,19 +153,20 @@ def _curve_to_mesh_object(name, curve_data, loc, mat, coll, sharp_angle=40, **kw
     return _object(name, me, loc, coll, **kw)
 
 
-def tube(name, pts_xz, radius, loc, mat, coll, **kw):
-    """Round 'neon' stroke along a polyline in the XZ plane: a cylinder per segment + a sphere per joint/end."""
+def tube(name, pts_xz, radius, loc, mat, coll, segs=40, **kw):
+    """Round 'neon' stroke along a polyline: a cylinder per segment + a sphere per joint/end.
+    Points are (x, z) in the XZ plane, or full (x, y, z)."""
     from mathutils import Matrix
 
     bm = bmesh.new()
-    pts = [Vector((x, 0, z)) for x, z in pts_xz]
+    pts = [Vector(p) if len(p) == 3 else Vector((p[0], 0, p[1])) for p in pts_xz]
     for a, b in zip(pts, pts[1:]):
         d = b - a
         rot = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_matrix().to_4x4()
         m = Matrix.Translation((a + b) / 2) @ rot
-        bmesh.ops.create_cone(bm, cap_ends=False, segments=40, radius1=radius, radius2=radius, depth=d.length, matrix=m)
+        bmesh.ops.create_cone(bm, cap_ends=False, segments=segs, radius1=radius, radius2=radius, depth=d.length, matrix=m)
     for p in pts:
-        bmesh.ops.create_uvsphere(bm, u_segments=40, v_segments=20, radius=radius, matrix=Matrix.Translation(p))
+        bmesh.ops.create_uvsphere(bm, u_segments=segs, v_segments=segs // 2, radius=radius, matrix=Matrix.Translation(p))
     return _object(name, from_bmesh(name, bm, mat), loc, coll, **kw)
 
 

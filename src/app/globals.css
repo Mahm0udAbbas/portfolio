@@ -78,8 +78,31 @@ html[data-preloading] [data-logo-target] svg {
   animation: blink 1s steps(1) infinite;
 }
 
+/* Footer bugs: "// bug fixed ✓" floats up from a squashed bug */
+@keyframes bug-toast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -14px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -48px) scale(1);
+  }
+}
+.bug-toast {
+  animation: bug-toast 1.4s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cursor-blink {
     animation: none;
+  }
+  .bug-toast {
+    animation-duration: 0.01s;
+    animation-delay: 1s;
   }
 }
