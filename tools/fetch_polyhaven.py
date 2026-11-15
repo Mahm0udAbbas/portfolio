@@ -22,7 +22,7 @@ TEXTURES = {  # asset id -> maps to fetch (1k jpg)
     "aerial_rocks_02": ["Diffuse", "nor_gl", "Rough"],
 }
 HDRI = "lago_disola"
-WEB_MAPS = {"Diffuse": "diff", "nor_gl": "nor"}  # what the site needs
+WEB_MAPS = {"Diffuse": "diff"}  # the site only needs colour (normals add little from a high camera)
 
 
 def get_json(url):

@@ -9,15 +9,15 @@ import type { Experience } from "@/content/site";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { scrollToSection } from "@/lib/lenis";
-import { RUN, WIDE_FROM, progressToS } from "./ski-timeline";
+import { CHECKPOINTS, cardAt, type Card } from "./ski-timeline";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const SkiCanvas = dynamic(() => import("./ski-canvas"), { ssr: false });
 
 /**
- * Experience as a ski run: the section pins for ~350vh and scrolling carries the skier past one
- * checkpoint per entry (oldest → newest). Phones (<1024px) and reduced motion get `fallback`
+ * Experience as a ski run, summit to summit: the section pins for ~500vh; scrolling carries the skier
+ * down each piste and up each chairlift. At every summit the card appears and the camera dives in. Phones (<1024px) and reduced motion get `fallback`
  * (the git-log timeline) — which is also what's server-rendered, so the content is always in the HTML.
  */
 export function SkiRunStage({ entries, fallback }: { entries: Experience[]; fallback: React.ReactNode }) {
@@ -27,18 +27,8 @@ export function SkiRunStage({ entries, fallback }: { entries: Experience[]; fall
   return <SkiRun entries={entries} />;
 }
 
-type Card = { kind: "intro" } | { kind: "entry"; index: number } | { kind: "end" };
-
-function cardFor(p: number, count: number): Card {
-  if (p >= WIDE_FROM + 0.03) return { kind: "end" };
-  const s = progressToS(p);
-  let idx = -1;
-  RUN.checkpoints.slice(0, count).forEach((c, i) => {
-    if (s >= c - 3) idx = i;
-  });
-  return idx < 0 ? { kind: "intro" } : { kind: "entry", index: idx };
-}
-const keyOf = (c: Card) => (c.kind === "entry" ? `e${c.index}` : c.kind);
+const keyOf = (c: Card) => (c.kind === "entry" ? `e${c.index}` : c.kind === "travel" ? `t${c.via}${c.index}` : c.kind);
+const TRAVEL = { descent: "skiing down from", lift: "chairlift up to", summit: "at the summit of" } as const;
 
 function SkiRun({ entries }: { entries: Experience[] }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -46,7 +36,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
   const [near, setNear] = useState(false);
   const [active, setActive] = useState(false);
   const [card, setCard] = useState<Card>({ kind: "intro" });
-  const count = Math.min(entries.length, RUN.checkpoints.length);
+  const count = Math.min(entries.length, CHECKPOINTS);
 
   // Swapping from the server-rendered timeline changes the page height → re-measure everything.
   useEffect(() => {
@@ -76,7 +66,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
         end: "bottom bottom",
         onUpdate: (self) => {
           progress.current = self.progress;
-          const c = cardFor(self.progress, count);
+          const c = cardAt(self.progress);
           const k = keyOf(c);
           if (k !== last) {
             last = k;
@@ -100,13 +90,19 @@ function SkiRun({ entries }: { entries: Experience[] }) {
   );
 
   return (
-    <div ref={wrap} className="relative h-[350vh]">
+    <div ref={wrap} className="relative h-[500vh]">
       <div className="sticky top-0 h-dvh overflow-hidden">
         <div className="absolute inset-0" aria-hidden="true">
           {near && <SkiCanvas active={active} progress={progress} reduced={false} />}
         </div>
 
         <div className="pointer-events-none relative mx-auto flex h-full max-w-6xl items-center px-8 pt-(--header-h)">
+          {card.kind === "travel" ? (
+            <div className="ski-card pointer-events-auto self-start mt-[calc(var(--header-h)+1.5rem)] rounded-full border border-line bg-surface/80 px-4 py-2 font-mono text-xs text-muted backdrop-blur-md">
+              <span className="text-accent-strong">❯</span> {TRAVEL[card.via]}{" "}
+              <span className="text-fg">{entries[Math.min(card.index, count - 1)]?.company}</span>
+            </div>
+          ) : (
           <div
             key={keyOf(card)}
             className="ski-card pointer-events-auto w-full max-w-md rounded-2xl border border-line bg-surface/80 p-7 shadow-[0_30px_70px_-30px_rgba(17,19,24,0.35)] backdrop-blur-md"
@@ -123,8 +119,8 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                   <span className="text-accent-strong">$</span> git log --reverse
                 </p>
                 <p className="mt-6 text-fg/75">
-                  From civil engineering to shipping React products — scroll to ski the run, one checkpoint per
-                  chapter.
+                  From civil engineering to shipping React products — scroll to ski it, summit to summit. Every
+                  peak is a chapter, each one higher than the last.
                 </p>
                 <p className="mt-6 font-mono text-xs text-muted">scroll ↓</p>
               </>
@@ -176,6 +172,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>

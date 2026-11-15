@@ -1,305 +1,499 @@
 import * as THREE from "three";
-import PATH from "./ski-path.json";
-import { RUN, WIDE_FROM, progressToS } from "./ski-timeline";
-
-export { RUN, WIDE_FROM, progressToS };
+import ROUTE from "./ski-route.json";
+import { SUMMIT_ARRIVE, SUMMIT_LEAVE, SEGMENTS, segmentAt, zoomAt } from "./ski-timeline";
 
 /**
- * The ski run as a plain class (kept out of React state): samples the path exported from Blender,
- * drives the skier (carving, jump arc, crouch, hockey stop), the chase camera, and the snow effects.
- * Everything is a pure function of the scroll position `s` (metres along the run) plus smoothing,
- * so scrolling back simply rewinds.
+ * The realistic ski run, as a plain class (kept out of React state).
+ * Everything is a function of scroll progress `p` (so scrolling back rewinds), plus smoothing:
+ *  - route: summit → descent (S-turns, jump) → chairlift → next summit … (data from blender/build_ski_run.py)
+ *  - an articulated skier: joint rotations blend between poses (stand, carve, tuck, sit, skate)
+ *  - camera: high bird's-eye while travelling; dives to a close-up at each summit; wide shot at the end
+ *  - terrain shader (aerial snow + tri-planar rock), instanced forests, snow spray, tracks, snowfall
  */
 
-const PTS = (PATH.points as number[][]).map(([x, y, z]) => new THREE.Vector3(x, y, z));
-const smooth = (t: number) => {
-  const c = Math.min(Math.max(t, 0), 1);
-  return c * c * (3 - 2 * c);
+const v3 = (a: number[]) => new THREE.Vector3(a[0], a[1], a[2]);
+const SUMMITS = ROUTE.summits.map(v3);
+const DESC = ROUTE.descents.map((d) => d.map(v3));
+const LIFTS = ROUTE.lifts.map((l) => l.map(v3));
+const [JUMP_A, JUMP_B] = ROUTE.jump as [number, number];
+
+const clamp01 = (x: number) => Math.min(Math.max(x, 0), 1);
+const smooth = (x: number) => {
+  const t = clamp01(x);
+  return t * t * (3 - 2 * t);
 };
-const tmpA = new THREE.Vector3();
-const tmpB = new THREE.Vector3();
+const damp = (k: number, dt: number) => 1 - Math.exp(-k * dt);
 
-/** Point on the path (surface of the ice) at distance s. */
-export function pathAt(s: number, out = new THREE.Vector3()) {
-  const f = Math.min(Math.max(s / RUN.step, 0), PTS.length - 1.0001);
-  const i = Math.floor(f);
-  return out.copy(PTS[i]).lerp(PTS[i + 1], f - i);
+function along(pts: THREE.Vector3[], f: number, out: THREE.Vector3) {
+  const x = clamp01(f) * (pts.length - 1);
+  const i = Math.min(Math.floor(x), pts.length - 2);
+  return out.copy(pts[i]).lerp(pts[i + 1], x - i);
 }
-/** Horizontal heading (radians, three.js yaw for a model facing -Z) at distance s. */
-function headingAt(s: number) {
-  pathAt(s - 0.8, tmpA);
-  pathAt(s + 0.8, tmpB);
-  return Math.atan2(-(tmpB.x - tmpA.x), -(tmpB.z - tmpA.z));
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+/** Yaw (three.js, model facing -Z) of travel along a polyline at f. */
+function yawAlong(pts: THREE.Vector3[], f: number) {
+  const e = 1.2 / (pts.length - 1);
+  along(pts, f - e, _a);
+  along(pts, f + e, _b);
+  return Math.atan2(-(_b.x - _a.x), -(_b.z - _a.z));
 }
-function pitchAt(s: number) {
-  pathAt(s - 0.8, tmpA);
-  pathAt(s + 0.8, tmpB);
-  return Math.atan2(tmpB.y - tmpA.y, Math.hypot(tmpB.x - tmpA.x, tmpB.z - tmpA.z));
-}
-/** Skier height including the jump arc between the lip and the landing. */
-function skierPos(s: number, out: THREE.Vector3) {
-  pathAt(s, out);
-  const { lip, land } = RUN.jump;
-  if (s > lip && s < land) {
-    const t = (s - lip) / (land - lip);
-    const yLip = pathAt(lip, tmpA).y;
-    const yLand = pathAt(land, tmpB).y;
-    const arc = yLip + (yLand - yLip) * t + 2.0 * 4 * t * (1 - t);
-    out.y = Math.max(out.y, arc);
-  }
-  return out;
-}
+const yawTo = (from: THREE.Vector3, to: THREE.Vector3) => Math.atan2(-(to.x - from.x), -(to.z - from.z));
+const angleDiff = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
-const SNOW_COUNT = 900;
-const SPRAY_COUNT = 260;
-const SPARKLE_COUNT = 70;
+// ── Poses: joint → euler (three.js axes; built from the Blender pose angles) ──
+type Pose = Record<string, [number, number, number]>;
+const J_NAMES = [
+  "Pelvis", "Spine", "Neck", "Head",
+  "ShoulderL", "ShoulderR", "ElbowL", "ElbowR", "WristL", "WristR", "PoleL", "PoleR",
+  "HipL", "HipR", "KneeL", "KneeR", "AnkleL", "AnkleR",
+] as const;
+const deg = THREE.MathUtils.degToRad;
+
+/** Athletic carving stance. a = angulation (+ = turning right), c = extra crouch, reachL/R = pole reach. */
+function carvePose(a: number, c: number, reachL: number, reachR: number): Pose {
+  const f = 1 + c;
+  return {
+    Pelvis: [0, 0, -a],
+    Spine: [-0.38 * f, 0, a * 0.8],
+    Neck: [0.22 * f, 0, 0],
+    HipL: [0.62 * f, 0, 0], HipR: [0.62 * f, 0, 0],
+    KneeL: [-0.95 * f, 0, 0], KneeR: [-0.95 * f, 0, 0],
+    AnkleL: [0.33 * f, 0, a], AnkleR: [0.33 * f, 0, a],
+    ShoulderL: [0.5 + reachL, deg(-12), 0], ShoulderR: [0.5 + reachR, deg(12), 0],
+    ElbowL: [0.75 - reachL * 0.5, 0, 0], ElbowR: [0.75 - reachR * 0.5, 0, 0],
+    PoleL: [-1.45 + reachL * 0.9, 0, 0], PoleR: [-1.45 + reachR * 0.9, 0, 0],
+  };
+}
+const STAND = (look: number): Pose => ({
+  Spine: [-0.08, 0, 0], Neck: [0.05, look, 0],
+  HipL: [0.18, 0, 0], HipR: [0.18, 0, 0], KneeL: [-0.32, 0, 0], KneeR: [-0.32, 0, 0],
+  AnkleL: [0.14, 0, 0], AnkleR: [0.14, 0, 0],
+  ShoulderL: [0.22, deg(-10), 0], ShoulderR: [0.22, deg(10), 0], ElbowL: [0.5, 0, 0], ElbowR: [0.5, 0, 0],
+  PoleL: [-1.15, 0, 0], PoleR: [-1.15, 0, 0],
+});
+const TUCK: Pose = {
+  Spine: [-0.95, 0, 0], Neck: [0.75, 0, 0],
+  HipL: [1.2, 0, 0], HipR: [1.2, 0, 0], KneeL: [-1.75, 0, 0], KneeR: [-1.75, 0, 0],
+  AnkleL: [0.55, 0, 0], AnkleR: [0.55, 0, 0],
+  ShoulderL: [1.05, deg(-8), 0], ShoulderR: [1.05, deg(8), 0], ElbowL: [1.1, 0, 0], ElbowR: [1.1, 0, 0],
+  PoleL: [-1.75, 0, 0], PoleR: [-1.75, 0, 0],
+};
+const SIT = (look: number): Pose => ({
+  Spine: [0.05, 0, 0], Neck: [0, look, 0],
+  HipL: [1.5, 0, 0], HipR: [1.5, 0, 0], KneeL: [-1.35, 0, 0], KneeR: [-1.35, 0, 0],
+  AnkleL: [0.1, 0, 0], AnkleR: [0.1, 0, 0],
+  ShoulderL: [0.25, deg(-8), 0], ShoulderR: [0.25, deg(8), 0], ElbowL: [0.9, 0, 0], ElbowR: [0.9, 0, 0],
+  PoleL: [-1.2, 0, 0], PoleR: [-1.2, 0, 0],
+});
+const SKATE = (phase: number): Pose => {
+  const s = Math.sin(phase);
+  return {
+    Spine: [-0.32, 0, 0], Neck: [0.25, 0, 0],
+    HipL: [0.55 + 0.25 * s, 0, 0.12 * Math.max(-s, 0)], HipR: [0.55 - 0.25 * s, 0, -0.12 * Math.max(s, 0)],
+    KneeL: [-0.8 - 0.2 * s, 0, 0], KneeR: [-0.8 + 0.2 * s, 0, 0],
+    AnkleL: [0.3, 0, 0], AnkleR: [0.3, 0, 0],
+    ShoulderL: [0.5 + 0.5 * s, deg(-12), 0], ShoulderR: [0.5 - 0.5 * s, deg(12), 0],
+    ElbowL: [0.6, 0, 0], ElbowR: [0.6, 0, 0], PoleL: [-1.6 + 0.4 * s, 0, 0], PoleR: [-1.6 - 0.4 * s, 0, 0],
+  };
+};
+
+const SNOW_COUNT = 1400;
+const SPRAY_COUNT = 400;
+const OVERVIEW_POS = new THREE.Vector3(-150, 150, 110);
+const OVERVIEW_LOOK = new THREE.Vector3(30, 28, -25);
+const UP = new THREE.Vector3(0, 1, 0);
+
+export type TreeData = { variants: string[]; trees: number[][] };
 
 export class SkiRunSim {
   root = new THREE.Group();
   private skier?: THREE.Object3D;
-  private body?: THREE.Object3D;
+  private joints = new Map<string, THREE.Object3D>();
+  private pelvisRestY = 1.08;
+  private chair?: THREE.Object3D;
   private camera?: THREE.Camera;
-  private s = 0;
-  private lastS = 0;
-  private roll = 0;
-  private stopped = false;
-  private camPos = new THREE.Vector3(0, 20, 20);
-  private camLook = new THREE.Vector3();
-  private pos = new THREE.Vector3();
-  private fwd = new THREE.Vector3();
-  private v = new THREE.Vector3();
-  private w = new THREE.Vector3();
-
-  // effects
-  private tracks!: THREE.Mesh;
-  private trackVertsPerSeg = 12; // 2 tracks x 2 triangles x 3 vertices
+  private sun = new THREE.DirectionalLight("#fff4e6", 2.4);
+  private ring!: THREE.Mesh;
   private snow!: THREE.Points;
   private spray!: THREE.Points;
   private sprayVel = new Float32Array(SPRAY_COUNT * 3);
   private sprayLife = new Float32Array(SPRAY_COUNT);
   private sprayNext = 0;
-  private sparkle!: THREE.Points;
+  private tracks: THREE.Mesh[] = [];
+  private arrival: THREE.Vector3[] = [];
 
-  attach(scene: THREE.Object3D, camera: THREE.Camera, reduced: boolean) {
-    this.skier = scene.getObjectByName("Skier") ?? undefined;
-    this.body = scene.getObjectByName("SkierBody") ?? undefined;
-    this.camera = camera;
-    this.dispose(); // effects may be rebuilt (Strict Mode / HMR) — never keep two sets
+  private lastP = 0;
+  private yaw = 0;
+  private roll = 0;
+  private skatePhase = 0;
+  private reachL = 0;
+  private reachR = 0;
+  private lastTurnSign = 0;
+  private camPos = new THREE.Vector3();
+  private camLook = new THREE.Vector3();
+  private pos = new THREE.Vector3();
+  private snapNext = true;
+
+  // ── setup ────────────────────────────────────────────────────────────────
+  attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean) {
+    this.dispose();
     this.root.clear();
-    this.root.add(this.buildTracks(), this.buildSnow(reduced), this.buildSpray(), this.buildSparkle());
-    this.update(0, 0, 0, true);
+    this.camera = camera;
+    this.snapNext = true;
+
+    const terrain = scene.getObjectByName("Terrain") as THREE.Mesh | undefined;
+    if (terrain) {
+      terrain.material = terrainMaterial(tex.snow, tex.rock);
+      terrain.receiveShadow = true;
+    }
+    for (const name of ["Kicker", "Lift_1", "Lift_2"]) {
+      scene.getObjectByName(name)?.traverse((o) => {
+        o.receiveShadow = true;
+      });
+    }
+
+    this.skier = scene.getObjectByName("Skier") ?? undefined;
+    this.skier?.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+    });
+    for (const n of J_NAMES) {
+      const j = scene.getObjectByName(n);
+      if (j) this.joints.set(n, j);
+    }
+    const pelvis = this.joints.get("Pelvis");
+    if (pelvis) {
+      pelvis.userData.restY ??= pelvis.position.y; // survive re-attach (Strict Mode / HMR)
+      this.pelvisRestY = pelvis.userData.restY as number;
+    }
+
+    const tpl = scene.getObjectByName("Chair");
+    if (tpl) {
+      tpl.visible = false;
+      this.chair = tpl.clone();
+      this.chair.visible = true;
+      this.root.add(this.chair);
+    }
+
+    // Where the skier steps off each lift (the ground beside the top station)
+    const ray = new THREE.Raycaster();
+    this.arrival = LIFTS.map((line) => {
+      const end = line[line.length - 1].clone();
+      if (terrain) {
+        ray.set(new THREE.Vector3(end.x, end.y + 60, end.z), new THREE.Vector3(0, -1, 0));
+        const hit = ray.intersectObject(terrain, false)[0];
+        if (hit) return hit.point.clone();
+      }
+      return end.setY(end.y - 5);
+    });
+
+    // Sun follows the skier so it always has a crisp shadow
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(1024, 1024);
+    const sc = this.sun.shadow.camera;
+    sc.left = sc.bottom = -14;
+    sc.right = sc.top = 14;
+    sc.near = 1;
+    sc.far = 140;
+    this.sun.shadow.bias = -0.0005;
+    this.root.add(this.sun, this.sun.target);
+
+    this.root.add(this.buildRing(), this.buildSpray(), this.buildSnow(reduced), ...this.buildTracks());
   }
 
-  // ── builders ─────────────────────────────────────────────────────────────
-  private buildTracks() {
-    const { lip, land } = RUN.jump;
-    const pos: number[] = [];
-    const side = new THREE.Vector3();
-    for (let i = 0; i < PTS.length - 1; i++) {
-      const s0 = i * RUN.step;
-      const s1 = s0 + RUN.step;
-      const air = s1 > lip && s0 < land;
-      for (const off of [-0.16, 0.16]) {
-        const quad: THREE.Vector3[] = [];
-        for (const [s, e] of [
-          [s0, -0.035],
-          [s1, -0.035],
-          [s1, 0.035],
-          [s0, 0.035],
-        ]) {
-          const h = headingAt(s);
-          side.set(Math.cos(h), 0, -Math.sin(h)); // right-hand side of travel
-          const p = pathAt(s, new THREE.Vector3()).addScaledVector(side, off + e);
-          p.y += air ? -2 : 0.015;
-          quad.push(p);
-        }
-        for (const k of [0, 1, 2, 0, 2, 3]) pos.push(quad[k].x, quad[k].y, quad[k].z);
+  addTrees(scene: THREE.Object3D, data: TreeData) {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const s = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    data.variants.forEach((name, vi) => {
+      const node = scene.getObjectByName(name);
+      if (!node) return;
+      node.visible = false;
+      const list = data.trees.filter((t) => t[5] === vi);
+      const meshes: THREE.Mesh[] = [];
+      node.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+      });
+      for (const mesh of meshes) {
+        const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, list.length);
+        list.forEach(([x, y, z, rot, sc], k) => {
+          m.compose(p.set(x, y, z), q.setFromAxisAngle(UP, rot), s.set(sc, sc, sc));
+          inst.setMatrixAt(k, m);
+        });
+        inst.instanceMatrix.needsUpdate = true;
+        inst.computeBoundingSphere();
+        this.root.add(inst);
       }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    g.setDrawRange(0, 0);
-    this.tracks = new THREE.Mesh(
-      g,
-      new THREE.MeshBasicMaterial({ color: "#A9C6DC", transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide }),
+    });
+  }
+
+  private buildRing() {
+    this.ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.5, 2.1, 48).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: "#FF8A4C", transparent: true, opacity: 0.9, depthWrite: false }),
     );
-    this.tracks.frustumCulled = false;
-    return this.tracks;
+    this.ring.renderOrder = 2;
+    return this.ring;
+  }
+
+  private buildSpray() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(SPRAY_COUNT * 3).fill(-9999), 3));
+    this.spray = new THREE.Points(
+      g,
+      new THREE.PointsMaterial({ color: "#FFFFFF", size: 0.12, transparent: true, opacity: 0.95, depthWrite: false }),
+    );
+    this.spray.frustumCulled = false;
+    return this.spray;
   }
 
   private buildSnow(reduced: boolean) {
-    const p = new Float32Array(SNOW_COUNT * 3);
+    const a = new Float32Array(SNOW_COUNT * 3);
     for (let i = 0; i < SNOW_COUNT; i++) {
-      p[i * 3] = (Math.random() - 0.5) * 70;
-      p[i * 3 + 1] = Math.random() * 30;
-      p[i * 3 + 2] = 8 - Math.random() * 80;
+      a[i * 3] = (Math.random() - 0.5) * 120;
+      a[i * 3 + 1] = Math.random() * 60;
+      a[i * 3 + 2] = (Math.random() - 0.5) * 120;
     }
     const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+    g.setAttribute("position", new THREE.BufferAttribute(a, 3));
     this.snow = new THREE.Points(
       g,
-      new THREE.PointsMaterial({ color: "#FFFFFF", size: 0.13, transparent: true, opacity: 0.9, depthWrite: false }),
+      new THREE.PointsMaterial({ color: "#FFFFFF", size: 0.22, transparent: true, opacity: 0.85, depthWrite: false }),
     );
     this.snow.visible = !reduced;
     this.snow.frustumCulled = false;
     return this.snow;
   }
 
-  private buildSpray() {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(SPRAY_COUNT * 3).fill(-999), 3));
-    this.spray = new THREE.Points(
-      g,
-      new THREE.PointsMaterial({ color: "#FFFFFF", size: 0.09, transparent: true, opacity: 0.95, depthWrite: false }),
-    );
-    this.spray.frustumCulled = false;
-    return this.spray;
-  }
-
-  private buildSparkle() {
-    const p = new Float32Array(SPARKLE_COUNT * 3);
-    const phase = new Float32Array(SPARKLE_COUNT);
-    const v = new THREE.Vector3();
-    for (let i = 0; i < SPARKLE_COUNT; i++) {
-      const s = Math.random() * RUN.finish;
-      pathAt(s, v);
-      const h = headingAt(s);
-      const off = (Math.random() - 0.5) * 2.4;
-      p[i * 3] = v.x + Math.cos(h) * off;
-      p[i * 3 + 1] = v.y + 0.06;
-      p[i * 3 + 2] = v.z - Math.sin(h) * off;
-      phase[i] = Math.random() * 100;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(p, 3));
-    g.setAttribute("phase", new THREE.BufferAttribute(phase, 1));
-    this.sparkle = new THREE.Points(
-      g,
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: { uTime: { value: 0 } },
-        vertexShader: /* glsl */ `
-          attribute float phase;
-          uniform float uTime;
-          varying float vA;
-          void main() {
-            vec4 mv = modelViewMatrix * vec4(position, 1.0);
-            vA = pow(max(sin(uTime * 2.3 + phase), 0.0), 14.0);
-            gl_PointSize = (2.0 + 7.0 * vA) * (40.0 / -mv.z);
-            gl_Position = projectionMatrix * mv;
-          }`,
-        fragmentShader: /* glsl */ `
-          varying float vA;
-          void main() {
-            vec2 c = gl_PointCoord - 0.5;
-            float star = max(0.0, 1.0 - (abs(c.x) + abs(c.y)) * 2.2) + max(0.0, 0.5 - length(c) * 2.0);
-            gl_FragColor = vec4(1.0, 1.0, 1.0, star * vA);
-          }`,
-      }),
-    );
-    this.sparkle.frustumCulled = false;
-    return this.sparkle;
+  private buildTracks() {
+    return DESC.map((pts, di) => {
+      const pos: number[] = [];
+      const side = new THREE.Vector3();
+      for (let i = 0; i < pts.length - 1; i++) {
+        const f0 = i / (pts.length - 1);
+        const air = di === 0 && f0 > JUMP_A - 0.005 && f0 < JUMP_B;
+        for (const off of [-0.17, 0.17]) {
+          const quad = [0, 1].flatMap((k) => {
+            const p = pts[i + k];
+            const yaw = yawAlong(pts, (i + k) / (pts.length - 1));
+            side.set(Math.cos(yaw), 0, -Math.sin(yaw));
+            return [-0.05, 0.05].map((e) => p.clone().addScaledVector(side, off + e).setY(p.y + (air ? -5 : 0.03)));
+          });
+          for (const k of [0, 2, 3, 0, 3, 1]) pos.push(quad[k].x, quad[k].y, quad[k].z);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setDrawRange(0, 0);
+      const mesh = new THREE.Mesh(
+        g,
+        new THREE.MeshBasicMaterial({ color: "#C5D3E2", transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      mesh.frustumCulled = false;
+      this.tracks.push(mesh);
+      return mesh;
+    });
   }
 
   // ── per frame ────────────────────────────────────────────────────────────
-  /** p = scroll progress 0..1 (already smoothed by ScrollTrigger scrub). */
-  update(p: number, dt: number, t: number, snap = false) {
+  update(p: number, dt: number, t: number) {
     const skier = this.skier;
     const cam = this.camera;
     if (!skier || !cam) return;
+    const snap = this.snapNext;
+    this.snapNext = false;
+    const dp = p - this.lastP;
+    this.lastP = p;
+    const { index, seg, t: u } = segmentAt(p);
 
-    this.lastS = this.s;
-    this.s = progressToS(p);
-    const s = this.s;
-    const ds = s - this.lastS;
-    const forward = ds > 0.0005;
+    let pose: Pose = STAND(0);
+    let seated = false;
+    let tucked = false;
+    let carveRoll = 0;
+    let travelYaw = this.yaw;
+    let chairPos: THREE.Vector3 | null = null;
+    let chairYaw = 0;
+    const pos = this.pos;
+    const skate = () => SKATE((this.skatePhase += Math.abs(dp) * 260));
 
-    // Skier transform
-    skierPos(s, this.pos);
-    const { lip, land, ramp_start } = RUN.jump;
-    const stopT = smooth((s - (RUN.finish - 1.6)) / 1.6); // hockey stop: turn sideways at the end
-    const yaw = headingAt(s) + stopT * 1.25;
-    const curv = headingAt(s + 1) - headingAt(s - 1);
-    const targetRoll = Math.max(-0.5, Math.min(0.5, -curv * 2.4)) * (1 - stopT) - stopT * 0.35;
-    this.roll += (targetRoll - this.roll) * (snap ? 1 : 1 - Math.exp(-8 * dt));
-    const airborne = s > lip && s < land;
-    const pitch = airborne ? -0.15 + 0.3 * ((s - lip) / (land - lip)) : pitchAt(s);
-    skier.position.copy(this.pos);
-    skier.rotation.set(pitch, yaw, this.roll, "YXZ");
-
-    // Body: crouch before the lip and on landing, lean forward when carving
-    if (this.body) {
-      const crouch =
-        smooth((s - ramp_start) / (lip - ramp_start)) * (1 - smooth((s - lip) / 0.6)) +
-        (1 - smooth(Math.abs(s - land) / 0.9)) +
-        stopT * 0.4;
-      this.body.scale.set(1, 1 - 0.22 * Math.min(crouch, 1), 1);
-      this.body.rotation.set(0.12 + 0.25 * Math.min(crouch, 1), 0, this.roll * 0.4);
+    // ── where is the skier, and what is it doing? ──
+    if (seg.kind === "intro" || seg.kind === "summit" || seg.kind === "end") {
+      const i = seg.i;
+      const S = SUMMITS[i];
+      const from = seg.kind === "summit" && i > 0 ? this.arrival[i - 1] : S;
+      const to = i < DESC.length ? DESC[i][0] : S;
+      if (seg.kind === "summit" && u < SUMMIT_ARRIVE && i > 0) {
+        pos.copy(from).lerp(S, smooth(u / SUMMIT_ARRIVE));
+        travelYaw = yawTo(from, S);
+        pose = skate();
+      } else if (seg.kind === "summit" && u > SUMMIT_LEAVE && i < DESC.length) {
+        pos.copy(S).lerp(to, smooth((u - SUMMIT_LEAVE) / (1 - SUMMIT_LEAVE)));
+        travelYaw = yawTo(S, to);
+        pose = skate();
+      } else {
+        pos.copy(S);
+        // at the top: face down the next run (on the last summit, back over the range you came from)
+        travelYaw = i < DESC.length ? yawTo(S, to) : yawTo(S, SUMMITS[1]);
+        pose = STAND(Math.sin(t * 0.6) * 0.5);
+      }
+    } else if (seg.kind === "descent") {
+      const pts = DESC[seg.i];
+      along(pts, u, pos);
+      travelYaw = yawAlong(pts, u);
+      // curvature → lean & angulation; a new turn → pole plant on the new inside hand
+      const curv = angleDiff(yawAlong(pts, u + 0.02), yawAlong(pts, u - 0.02));
+      const turn = Math.max(-1, Math.min(1, curv * 2.2));
+      carveRoll = -turn * 0.55;
+      const sign = Math.sign(turn);
+      if (sign !== 0 && sign !== this.lastTurnSign && dp !== 0) {
+        if (sign > 0) this.reachL = 0.55;
+        else this.reachR = 0.55;
+        this.lastTurnSign = sign;
+      }
+      this.reachL *= Math.exp(-3.5 * dt);
+      this.reachR *= Math.exp(-3.5 * dt);
+      pose = carvePose(turn * 0.35, 0.08 + 0.22 * Math.abs(turn), this.reachL, this.reachR);
+      if (seg.i === 0 && u > JUMP_A - 0.03 && u < JUMP_B + 0.02) {
+        // the career-switch jump: crouch on the kicker, arc through the air in a tuck, absorb the landing
+        const ja = (u - JUMP_A) / (JUMP_B - JUMP_A);
+        if (ja > 0 && ja < 1) {
+          const ya = along(pts, JUMP_A, _a).y + 1.3;
+          const yb = along(pts, JUMP_B, _b).y;
+          pos.y = Math.max(pos.y, ya + (yb - ya) * ja + 6 * ja * (1 - ja));
+          pose = TUCK;
+          tucked = true;
+          carveRoll = 0;
+        } else pose = carvePose(0, 0.55, 0, 0);
+      }
+    } else if (seg.kind === "lift") {
+      const line = LIFTS[seg.i];
+      const base = DESC[seg.i][DESC[seg.i].length - 1];
+      const board = 0.08;
+      const unload = 0.9;
+      const k = clamp01((u - board) / (unload - board));
+      chairPos = along(line, k, new THREE.Vector3());
+      chairYaw = yawAlong(line, Math.min(Math.max(k, 0.02), 0.98));
+      const seat = chairPos.clone().add(new THREE.Vector3(0, -2.26 + 0.1 - this.pelvisRestY, 0));
+      travelYaw = chairYaw;
+      if (u < board) {
+        pos.copy(base).lerp(seat, smooth(u / board));
+        seated = u >= board * 0.6;
+        pose = seated ? SIT(0) : skate();
+      } else if (u > unload) {
+        const kk = smooth((u - unload) / (1 - unload));
+        pos.copy(seat).lerp(this.arrival[seg.i], kk);
+        seated = kk < 0.4;
+        pose = seated ? SIT(0) : STAND(0);
+      } else {
+        pos.copy(seat);
+        seated = true;
+        pose = SIT(Math.sin(t * 0.5) * 0.6);
+      }
     }
 
-    // Chase camera → wide shot at the end
-    this.fwd.set(-Math.sin(yaw - stopT * 1.25), 0, -Math.cos(yaw - stopT * 1.25));
-    this.v.copy(this.pos).addScaledVector(this.fwd, -6.2).add(this.w.set(0, 3.1, 0));
-    const lookAhead = this.w.copy(this.pos).addScaledVector(this.fwd, 3.5);
-    lookAhead.y += 0.4;
-    const wide = smooth((p - WIDE_FROM) / (1 - WIDE_FROM));
-    if (wide > 0) {
-      this.v.lerp(new THREE.Vector3(-6, 30, 24), wide);
-      lookAhead.lerp(new THREE.Vector3(1, 3, -32), wide);
+    // ── apply transform + pose (smoothed) ──
+    const kPose = snap ? 1 : damp(10, dt);
+    this.yaw += angleDiff(travelYaw, this.yaw) * (snap ? 1 : damp(8, dt));
+    this.roll += (carveRoll - this.roll) * (snap ? 1 : damp(7, dt));
+    for (const [name, j] of this.joints) {
+      const target = pose[name] ?? [0, 0, 0];
+      j.rotation.x += (target[0] - j.rotation.x) * kPose;
+      j.rotation.y += (target[1] - j.rotation.y) * kPose;
+      j.rotation.z += (target[2] - j.rotation.z) * kPose;
     }
-    const k = snap ? 1 : 1 - Math.exp(-5 * dt);
-    this.camPos.lerp(this.v, k);
-    this.camLook.lerp(lookAhead, k);
+    // keep the skis on the snow: bent legs lower the hips (simple FK on the left leg)
+    const pelvis = this.joints.get("Pelvis");
+    if (pelvis) {
+      const th = this.joints.get("HipL")?.rotation.x ?? 0;
+      const sh = th + (this.joints.get("KneeL")?.rotation.x ?? 0);
+      const drop = seated ? 0 : 0.44 * (1 - Math.cos(th)) + 0.42 * (1 - Math.cos(sh));
+      pelvis.position.y = this.pelvisRestY - drop;
+    }
+    skier.position.copy(pos);
+    skier.rotation.set(0, this.yaw, this.roll, "YXZ");
+
+    if (this.chair) {
+      this.chair.visible = !!chairPos;
+      if (chairPos) {
+        this.chair.position.copy(chairPos);
+        this.chair.rotation.set(0, chairYaw, 0);
+      }
+    }
+
+    // ── camera: high & following → dive in at summits → wide at the end ──
+    const zoom = zoomAt(seg.kind, u);
+    const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const side = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    const want = pos.clone().addScaledVector(fwd, -26).addScaledVector(side, 8).add(new THREE.Vector3(0, 38, 0));
+    const look = pos.clone().addScaledVector(fwd, 10);
+    const close = pos.clone().addScaledVector(side, 3.3).addScaledVector(fwd, 1.6).add(new THREE.Vector3(0, 1.65, 0));
+    want.lerp(close, zoom);
+    look.lerp(pos.clone().add(new THREE.Vector3(0, 1.2, 0)), zoom);
+    if (seg.kind === "end") {
+      const w = smooth(u / 0.7);
+      want.lerp(OVERVIEW_POS, w);
+      look.lerp(OVERVIEW_LOOK, w);
+    }
+    const kc = snap ? 1 : damp(zoom > 0.02 ? 6 : 3.2, dt);
+    this.camPos.lerp(want, kc);
+    this.camLook.lerp(look, kc);
     cam.position.copy(this.camPos);
     cam.lookAt(this.camLook);
 
-    // Tracks follow the skier (rewind with it)
-    const seg = Math.max(0, Math.floor(s / RUN.step));
-    this.tracks.geometry.setDrawRange(0, seg * this.trackVertsPerSeg);
+    // sun + shadow follow the skier
+    this.sun.position.copy(pos).add(new THREE.Vector3(-30, 55, 25));
+    this.sun.target.position.copy(pos);
 
-    // Spray: from the ski tails while carving forward, and a burst at the hockey stop
-    const speed = Math.abs(ds) / Math.max(dt, 1e-3);
-    if (forward && !airborne) this.emit(Math.min(6, Math.floor(speed * 0.25 + Math.abs(this.roll) * 6)), 1.2);
-    if (forward && stopT > 0.85 && !this.stopped) {
-      this.emit(90, 3.2);
-      this.stopped = true;
+    // orange marker so the tiny skier is easy to spot from high up
+    this.ring.position.set(pos.x, pos.y + 0.15, pos.z);
+    (this.ring.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - zoom) * (seated ? 0 : 1);
+    this.ring.scale.setScalar(1 + 0.12 * Math.sin(t * 3));
+
+    // tracks: finished descents stay; the current one grows (and rewinds) with the skier
+    this.tracks.forEach((mesh, di) => {
+      const segIdx = SEGMENTS.findIndex((s) => s.kind === "descent" && s.i === di);
+      const verts = (mesh.geometry.attributes.position as THREE.BufferAttribute).count;
+      const f = index > segIdx ? 1 : index < segIdx ? 0 : u;
+      mesh.geometry.setDrawRange(0, Math.floor((f * verts) / 12) * 12);
+    });
+
+    // snow spray off the edges while carving forward, and a burst when stopping at a summit
+    if (seg.kind === "descent" && dp > 0 && !tucked) {
+      this.emit(Math.min(8, 1 + Math.floor(Math.abs(this.roll) * 14 + dp * 3000)), 2.2);
     }
-    if (stopT < 0.5) this.stopped = false;
+    if (seg.kind === "summit" && dp > 0 && u > SUMMIT_ARRIVE - 0.02 && u < SUMMIT_ARRIVE + 0.01) this.emit(20, 3);
     this.stepSpray(dt);
 
-    // Snowfall drifts down and wraps; sparkle shader time
+    // snowfall: a box of flakes that travels with the skier
     if (this.snow.visible) {
-      const a = this.snow.geometry.attributes.position as THREE.BufferAttribute;
-      const arr = a.array as Float32Array;
+      this.snow.position.copy(pos);
+      const attr = this.snow.geometry.attributes.position as THREE.BufferAttribute;
+      const arr = attr.array as Float32Array;
       for (let i = 0; i < SNOW_COUNT; i++) {
-        arr[i * 3 + 1] -= dt * (0.9 + (i % 7) * 0.12);
-        arr[i * 3] += Math.sin(t * 0.6 + i) * dt * 0.25;
-        if (arr[i * 3 + 1] < -2) arr[i * 3 + 1] = 28;
+        arr[i * 3 + 1] -= dt * (1.4 + (i % 9) * 0.15);
+        arr[i * 3] += Math.sin(t * 0.5 + i) * dt * 0.6;
+        if (arr[i * 3 + 1] < -10) arr[i * 3 + 1] = 55;
       }
-      a.needsUpdate = true;
+      attr.needsUpdate = true;
     }
-    (this.sparkle.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
   }
 
   private emit(n: number, power: number) {
-    if (!this.skier || n <= 0) return;
     const arr = (this.spray.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
-    const yaw = this.skier.rotation.y;
-    const back = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)); // opposite of travel
-    const side = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const back = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    const side = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw)).multiplyScalar(Math.sign(this.roll || 1));
     for (let j = 0; j < n; j++) {
       const i = this.sprayNext;
       this.sprayNext = (i + 1) % SPRAY_COUNT;
-      arr[i * 3] = this.pos.x + back.x * 0.6 + (Math.random() - 0.5) * 0.4;
-      arr[i * 3 + 1] = this.pos.y + 0.08;
-      arr[i * 3 + 2] = this.pos.z + back.z * 0.6 + (Math.random() - 0.5) * 0.4;
-      const sideways = (Math.random() - 0.5) * 2 + Math.sign(this.roll || 1) * 0.8;
-      this.sprayVel[i * 3] = (back.x * 0.6 + side.x * sideways) * power;
-      this.sprayVel[i * 3 + 1] = (0.8 + Math.random() * 1.2) * power;
-      this.sprayVel[i * 3 + 2] = (back.z * 0.6 + side.z * sideways) * power;
-      this.sprayLife[i] = 0.5 + Math.random() * 0.4;
+      arr[i * 3] = this.pos.x + back.x * 0.7 + (Math.random() - 0.5) * 0.5;
+      arr[i * 3 + 1] = this.pos.y + 0.1;
+      arr[i * 3 + 2] = this.pos.z + back.z * 0.7 + (Math.random() - 0.5) * 0.5;
+      const spread = Math.random();
+      this.sprayVel[i * 3] = (back.x * 0.5 + side.x * (0.6 + spread)) * power;
+      this.sprayVel[i * 3 + 1] = (0.7 + Math.random()) * power;
+      this.sprayVel[i * 3 + 2] = (back.z * 0.5 + side.z * (0.6 + spread)) * power;
+      this.sprayLife[i] = 0.5 + Math.random() * 0.5;
     }
   }
 
@@ -309,19 +503,58 @@ export class SkiRunSim {
     for (let i = 0; i < SPRAY_COUNT; i++) {
       if (this.sprayLife[i] <= 0) continue;
       this.sprayLife[i] -= dt;
-      this.sprayVel[i * 3 + 1] -= 9 * dt;
+      this.sprayVel[i * 3 + 1] -= 9.8 * dt;
       arr[i * 3] += this.sprayVel[i * 3] * dt;
       arr[i * 3 + 1] += this.sprayVel[i * 3 + 1] * dt;
       arr[i * 3 + 2] += this.sprayVel[i * 3 + 2] * dt;
-      if (this.sprayLife[i] <= 0) arr[i * 3 + 1] = -999;
+      if (this.sprayLife[i] <= 0) arr[i * 3 + 1] = -9999;
     }
     attr.needsUpdate = true;
   }
 
   dispose() {
-    for (const o of [this.tracks, this.snow, this.spray, this.sparkle]) {
+    for (const o of [this.ring, this.spray, this.snow, ...this.tracks]) {
       o?.geometry.dispose();
       (o?.material as THREE.Material | undefined)?.dispose();
     }
+    this.tracks = [];
+    this.root.traverse((o) => {
+      if ((o as THREE.InstancedMesh).isInstancedMesh) (o as THREE.InstancedMesh).dispose();
+    });
   }
+}
+
+/** Terrain: aerial snow from above, tri-planar rock on steep faces (mask R), brighter groomed pistes (mask G). */
+function terrainMaterial(snow: THREE.Texture, rock: THREE.Texture) {
+  const m = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.82, metalness: 0 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uSnow = { value: snow };
+    shader.uniforms.uRock = { value: rock };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nattribute vec4 color;\nvarying vec4 vMask;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;",
+      )
+      .replace(
+        "#include <worldpos_vertex>",
+        "#include <worldpos_vertex>\nvMask = color;\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWNormal = normalize(mat3(modelMatrix) * objectNormal);",
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform sampler2D uSnow;\nuniform sampler2D uRock;\nvarying vec4 vMask;\nvarying vec3 vWPos;\nvarying vec3 vWNormal;",
+      )
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+        vec3 snowC = texture2D(uSnow, vWPos.xz / 36.0).rgb;
+        vec3 bw = abs(normalize(vWNormal)); bw = pow(bw, vec3(4.0)); bw /= (bw.x + bw.y + bw.z);
+        vec3 rockC = texture2D(uRock, vWPos.zy / 26.0).rgb * bw.x
+                   + texture2D(uRock, vWPos.xz / 26.0).rgb * bw.y
+                   + texture2D(uRock, vWPos.xy / 26.0).rgb * bw.z;
+        vec3 groomed = mix(snowC, vec3(0.955, 0.966, 0.985), vMask.g * 0.8);
+        diffuseColor.rgb *= mix(groomed, rockC, clamp(vMask.r, 0.0, 1.0));`,
+      );
+  };
+  return m;
 }
