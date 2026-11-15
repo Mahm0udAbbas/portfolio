@@ -1,6 +1,7 @@
 """Send Python code to the Blender Lab MCP extension bridge (localhost:9876).
 
-Usage: python bl.py <file.py>   or   python bl.py -c "code"
+Usage: python tools/blender_bridge.py <file.py> [more.py ...]   (files are concatenated, in order)
+       python tools/blender_bridge.py -c "code"
 Code should set `result = {...}` to return data.
 """
 import json, socket, sys
@@ -17,5 +18,8 @@ def run(code, host="localhost", port=9876, timeout=900):
     return json.loads(buf.rstrip(b"\0"))
 
 if __name__ == "__main__":
-    code = sys.argv[2] if sys.argv[1] == "-c" else open(sys.argv[1], encoding="utf-8").read()
+    if sys.argv[1] == "-c":
+        code = sys.argv[2]
+    else:
+        code = "\n\n".join(open(f, encoding="utf-8").read() for f in sys.argv[1:])
     print(json.dumps(run(code), indent=2))
