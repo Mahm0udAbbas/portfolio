@@ -1,27 +1,18 @@
 import { site } from "@/content/site";
 import { Section } from "@/components/ui/section";
+import { SkillsStage } from "@/components/skills/skills-stage";
 
-/** Grouped skill keycaps — milestone 6 swaps this for the 3D physics keycap pile (this stays as the fallback). */
+/** Skills: a physics pile of 3D keycaps (Blender → R3F + Rapier). */
 export function Skills() {
   return (
     <Section id="skills" label="skills">
-      <div data-reveal data-reveal-children className="grid gap-10 sm:grid-cols-2">
-        {site.skills.map((g) => (
-          <div key={g.label}>
-            <h3 className="mb-4 font-mono text-sm text-muted">{g.label}</h3>
-            <ul className="flex flex-wrap gap-3">
-              {g.items.map((s) => (
-                <li
-                  key={s}
-                  className="rounded-lg border border-line border-b-4 bg-surface-2 px-4 py-2 font-mono text-sm"
-                >
-                  {s}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
+      <h2 data-reveal className="mb-4 text-4xl font-semibold tracking-tight sm:text-6xl">
+        My stack<span className="text-accent">.</span>
+      </h2>
+      <p data-reveal className="mb-6 max-w-xl text-lg text-fg/70">
+        The tools I reach for every day. Go ahead, throw them around.
+      </p>
+      <SkillsStage groups={site.skills} />
     </Section>
   );
 }
