@@ -108,6 +108,9 @@ const SKATE = (phase: number): Pose => {
 };
 
 const SNOW_COUNT = 1400;
+const LENS_COUNT = 40;
+const LENS_RANGE = 22; // only throw powder at the lens when the camera is this close (m)
+const MAX_SPLATS_PER_BURST = 6;
 const SPRAY_COUNT = 400;
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -152,6 +155,19 @@ export class SkiRunSim {
   private skiL?: THREE.Object3D;
   private skiR?: THREE.Object3D;
   private contactOffset = 0;
+
+  // snow on the lens
+  private onSplat: ((ndcX: number, ndcY: number, sizePx: number) => void) | null = null;
+  setSplatHandler(fn: ((ndcX: number, ndcY: number, sizePx: number) => void) | null) {
+    this.onSplat = fn;
+  }
+  private lens!: THREE.Points;
+  private lensVel = new Float32Array(LENS_COUNT * 3);
+  private lensLive = new Uint8Array(LENS_COUNT);
+  private lensHits = 0;
+  private lastSeg = -1;
+  private lastU = 0;
+  private firedArrive = -1;
 
   // ── setup ────────────────────────────────────────────────────────────────
   attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean) {
@@ -219,7 +235,7 @@ export class SkiRunSim {
     this.sun.shadow.bias = -0.0005;
     this.root.add(this.sun, this.sun.target);
 
-    this.root.add(this.buildRing(), this.buildSpray(), this.buildSnow(reduced), ...this.buildTracks());
+    this.root.add(this.buildRing(), this.buildSpray(), this.buildSnow(reduced), this.buildLens(), ...this.buildTracks());
   }
 
   private buildHeightmap(terrain: THREE.Mesh) {
@@ -338,6 +354,93 @@ export class SkiRunSim {
     );
     this.spray.frustumCulled = false;
     return this.spray;
+  }
+
+  /** Big powder chunks thrown at the camera on skid stops / landings. */
+  private buildLens() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(LENS_COUNT * 3).fill(-9999), 3));
+    this.lens = new THREE.Points(
+      g,
+      new THREE.PointsMaterial({
+        color: "#FFFFFF",
+        size: 0.32,
+        map: flakeTexture(),
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      }),
+    );
+    this.lens.frustumCulled = false;
+    return this.lens;
+  }
+
+  /** Throw a burst of powder from the skier toward the lens (only when the camera is close). */
+  private lensBurst(n: number) {
+    const cam = this.camera;
+    if (!cam || this.camPos.distanceTo(this.pos) > LENS_RANGE) return;
+    const arr = (this.lens.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+    const camDir = cam.getWorldDirection(new THREE.Vector3());
+    const right = new THREE.Vector3().crossVectors(camDir, UP).normalize();
+    const up = new THREE.Vector3().crossVectors(right, camDir).normalize();
+    this.lensHits = 0;
+    for (let j = 0, i = 0; i < LENS_COUNT && j < n; i++) {
+      if (this.lensLive[i]) continue;
+      j++;
+      this.lensLive[i] = 1;
+      const start = new THREE.Vector3(
+        this.pos.x + (Math.random() - 0.5) * 0.8,
+        this.pos.y + 0.3 + Math.random() * 0.5,
+        this.pos.z + (Math.random() - 0.5) * 0.8,
+      );
+      // aim at a random spot just in front of the lens, inside the visible frame
+      const target = cam.position
+        .clone()
+        .addScaledVector(camDir, 0.7)
+        .addScaledVector(right, (Math.random() - 0.5) * 0.42)
+        .addScaledVector(up, (Math.random() - 0.5) * 0.26);
+      const speed = 12 + Math.random() * 8;
+      const v = target.sub(start).normalize().multiplyScalar(speed);
+      arr[i * 3] = start.x;
+      arr[i * 3 + 1] = start.y;
+      arr[i * 3 + 2] = start.z;
+      this.lensVel[i * 3] = v.x;
+      this.lensVel[i * 3 + 1] = v.y;
+      this.lensVel[i * 3 + 2] = v.z;
+    }
+  }
+
+  private stepLens(dt: number) {
+    const cam = this.camera;
+    if (!cam) return;
+    const attr = this.lens.geometry.attributes.position as THREE.BufferAttribute;
+    const arr = attr.array as Float32Array;
+    const camDir = cam.getWorldDirection(new THREE.Vector3());
+    const p = new THREE.Vector3();
+    for (let i = 0; i < LENS_COUNT; i++) {
+      if (!this.lensLive[i]) continue;
+      this.lensVel[i * 3 + 1] -= 0.6 * dt; // barely any drop: they're flying straight at you
+      arr[i * 3] += this.lensVel[i * 3] * dt;
+      arr[i * 3 + 1] += this.lensVel[i * 3 + 1] * dt;
+      arr[i * 3 + 2] += this.lensVel[i * 3 + 2] * dt;
+      p.set(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]);
+      const rel = p.clone().sub(cam.position);
+      const ahead = rel.dot(camDir);
+      if (ahead < 0.9) {
+        // reached the lens: leave a clump where it hit (if it's in view and we haven't overdone it)
+        const ndc = p.clone().project(cam);
+        if (ahead > -0.5 && this.lensHits < MAX_SPLATS_PER_BURST && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1) {
+          this.lensHits++;
+          this.onSplat?.(ndc.x, ndc.y, 90 + Math.random() * 130);
+        }
+        this.lensLive[i] = 0;
+        arr[i * 3 + 1] = -9999;
+      } else if (rel.length() > 60) {
+        this.lensLive[i] = 0;
+        arr[i * 3 + 1] = -9999;
+      }
+    }
+    attr.needsUpdate = true;
   }
 
   private buildSnow(reduced: boolean) {
@@ -610,8 +713,23 @@ export class SkiRunSim {
       const edge = Math.floor(Math.abs(this.roll) * 12 + dp * 2500);
       if (edge > 0) this.emit(Math.min(8, edge), 2.2);
     }
-    if (seg.kind === "summit" && dp > 0 && u > SUMMIT_ARRIVE - 0.02 && u < SUMMIT_ARRIVE + 0.01) this.emit(20, 3);
+    if (seg.kind === "summit" && dp > 0 && u > SUMMIT_ARRIVE - 0.02 && u < SUMMIT_ARRIVE + 0.01) {
+      this.emit(20, 3);
+      if (this.firedArrive !== index && seg.i > 0) {
+        this.firedArrive = index;
+        this.lensBurst(26); // skid stop sprays the camera
+      }
+    }
+    if (seg.kind !== "summit") this.firedArrive = -1;
+    const landed = seg.kind === "descent" && seg.i === 0 && index === this.lastSeg && this.lastU < JUMP_B && u >= JUMP_B;
+    if (landed && dp > 0) {
+      this.emit(30, 3.2);
+      this.lensBurst(22); // landing throws powder at the lens
+    }
+    this.lastSeg = index;
+    this.lastU = u;
     this.stepSpray(dt);
+    this.stepLens(dt);
 
     // snowfall: a box of flakes that travels with the camera (so there is always snow in front of you)
     if (this.snow.visible) {
@@ -661,7 +779,7 @@ export class SkiRunSim {
   }
 
   dispose() {
-    for (const o of [this.ring, this.spray, this.snow, ...this.tracks]) {
+    for (const o of [this.ring, this.spray, this.snow, this.lens, ...this.tracks]) {
       o?.geometry.dispose();
       ((o?.material as THREE.PointsMaterial | undefined)?.map as THREE.Texture | null | undefined)?.dispose();
       (o?.material as THREE.Material | undefined)?.dispose();

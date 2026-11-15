@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -10,6 +10,7 @@ import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { getLenis, scrollToSection } from "@/lib/lenis";
 import { CHECKPOINTS, cardAt, glideFrom, type Card } from "./ski-timeline";
+import { SnowSplats, type SnowSplatsHandle } from "./snow-splats";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -33,6 +34,8 @@ const TRAVEL = { descent: "skiing down from", lift: "chairlift up to", summit: "
 function SkiRun({ entries }: { entries: Experience[] }) {
   const wrap = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const splats = useRef<SnowSplatsHandle>(null);
+  const onSplat = useCallback((x: number, y: number, size: number) => splats.current?.splat(x, y, size), []);
   const progress = useRef(0);
   const [near, setNear] = useState(false);
   const [active, setActive] = useState(false);
@@ -157,8 +160,10 @@ function SkiRun({ entries }: { entries: Experience[] }) {
     <div ref={wrap} className="relative h-[950vh]">
       <div className="sticky top-0 h-dvh overflow-hidden">
         <div className="absolute inset-0" aria-hidden="true">
-          {near && <SkiCanvas active={active} progress={progress} reduced={false} />}
+          {near && <SkiCanvas active={active} progress={progress} reduced={false} onSplat={onSplat} />}
         </div>
+        {/* snow on the lens sits above the scene but below the card; keeps the card's side clear */}
+        <SnowSplats ref={splats} avoid={0.42} />
 
         <div className="pointer-events-none relative mx-auto flex h-full max-w-6xl items-center px-8 pt-(--header-h)">
           <div

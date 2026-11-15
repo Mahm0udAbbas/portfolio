@@ -14,7 +14,9 @@ useGLTF.preload(MODEL, DRACO);
 
 const PAGE_BG = "#EEF0F4"; // haze fades the far range into the page
 
-function Run({ progress, reduced }: { progress: React.RefObject<number>; reduced: boolean }) {
+type SplatFn = (ndcX: number, ndcY: number, sizePx: number) => void;
+
+function Run({ progress, reduced, onSplat }: { progress: React.RefObject<number>; reduced: boolean; onSplat?: SplatFn }) {
   const { scene } = useGLTF(MODEL, DRACO);
   const tex = useTexture(TEX, (t) => {
     for (const x of Array.isArray(t) ? t : [t]) {
@@ -30,6 +32,10 @@ function Run({ progress, reduced }: { progress: React.RefObject<number>; reduced
     sim.attach(scene, camera, tex, reduced);
     return () => sim.dispose();
   }, [sim, scene, camera, tex, reduced]);
+
+  useEffect(() => {
+    sim.setSplatHandler(onSplat ?? null);
+  }, [sim, onSplat]);
 
   useEffect(() => {
     let alive = true;
@@ -56,10 +62,12 @@ export default function SkiCanvas({
   active,
   progress,
   reduced,
+  onSplat,
 }: {
   active: boolean;
   progress: React.RefObject<number>;
   reduced: boolean;
+  onSplat?: SplatFn;
 }) {
   return (
     <Canvas
@@ -72,7 +80,7 @@ export default function SkiCanvas({
       <fog attach="fog" args={[PAGE_BG, 220, 720]} />
       <hemisphereLight args={["#E8F0FF", "#9AA4B4", 0.35]} />
       <Environment files="/hdri/lago_disola_1k.hdr" environmentIntensity={1} />
-      <Run progress={progress} reduced={reduced} />
+      <Run progress={progress} reduced={reduced} onSplat={onSplat} />
     </Canvas>
   );
 }
