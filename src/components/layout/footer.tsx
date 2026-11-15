@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { site } from "@/content/site";
 import { Logo } from "@/components/brand/logo";
 import { BugCounter, BugsLayer } from "@/components/bugs/bugs-layer";
@@ -71,9 +72,9 @@ export function Footer() {
           <p>
             <BugCounter />
           </p>
-          <a href="/#hero" className="hover:text-accent">
+          <Link href="/#hero" className="hover:text-accent">
             back to top ↑
-          </a>
+          </Link>
         </div>
       </div>
     </footer>
