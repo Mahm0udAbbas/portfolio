@@ -31,12 +31,12 @@ export function Footer() {
 
         <nav aria-label="Footer">
           <p className="mb-4 font-mono text-xs text-muted">
-            <span className="text-accent">~/</span>sitemap
+            <span className="text-accent-strong">~/</span>sitemap
           </p>
           <ul className="space-y-2">
             {site.nav.map((n) => (
               <li key={n.id}>
-                <a href={`/#${n.id}`} className="text-fg/80 transition-colors hover:text-accent">
+                <a href={`/#${n.id}`} className="text-fg/80 transition-colors hover:text-accent-strong">
                   {n.label}
                 </a>
               </li>
@@ -46,14 +46,14 @@ export function Footer() {
 
         <div>
           <p className="mb-4 font-mono text-xs text-muted">
-            <span className="text-accent">~/</span>contact
+            <span className="text-accent-strong">~/</span>contact
           </p>
           <ul className="space-y-2">
             {contact.map((l) => (
               <li key={l.label}>
                 <a
                   href={l.href}
-                  className="text-fg/80 transition-colors hover:text-accent"
+                  className="text-fg/80 transition-colors hover:text-accent-strong"
                   {...(l.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
                 >
                   {l.label}
@@ -72,7 +72,7 @@ export function Footer() {
           <p>
             <BugCounter />
           </p>
-          <Link href="/#hero" className="hover:text-accent">
+          <Link href="/#hero" className="hover:text-accent-strong">
             back to top ↑
           </Link>
         </div>

@@ -11,7 +11,7 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
   return (
     <article className="mx-auto w-full max-w-5xl px-4 pb-24 pt-20 sm:px-8 md:pt-24">
       <p className="font-mono text-sm text-muted">
-        <span className="text-accent">~/</span>projects/{p.slug}
+        <span className="text-accent-strong">~/</span>projects/{p.slug}
       </p>
       <h1 id="project-title" className="mt-4 text-5xl font-semibold tracking-tight sm:text-7xl">
         {p.title}
@@ -39,13 +39,13 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
         <p className="text-lg leading-relaxed text-fg/85">{p.description}</p>
         <div className="font-mono text-sm">
           <p className="text-muted">
-            <span className="text-accent">$</span> open --links
+            <span className="text-accent-strong">$</span> open --links
           </p>
           {links.length ? (
             <ul className="mt-3 space-y-2">
               {links.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href} target="_blank" rel="noreferrer" className="hover:text-accent">
+                  <a href={l.href} target="_blank" rel="noreferrer" className="hover:text-accent-strong">
                     ↗ {l.label}
                   </a>
                 </li>

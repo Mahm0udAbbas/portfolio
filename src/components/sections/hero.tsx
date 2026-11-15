@@ -13,11 +13,11 @@ export function Hero() {
 
         <div className="pointer-events-none relative z-10 mx-auto flex h-full max-w-6xl items-start px-4 pt-[calc(var(--header-h)+3rem)] sm:px-8 md:items-center md:pt-(--header-h)">
           <div data-hero-copy className="pointer-events-auto max-w-xl">
-            <p className="font-mono text-sm text-accent">$ whoami</p>
+            <p className="font-mono text-sm text-accent-strong">$ whoami</p>
             <h1 className="mt-4 text-5xl font-semibold tracking-tight sm:text-7xl">{site.name}</h1>
             <p className="mt-3 font-mono text-lg text-muted">
               {site.role}
-              <span className="cursor-blink text-accent">_</span>
+              <span className="cursor-blink text-accent-strong">_</span>
             </p>
             <p className="mt-8 max-w-md text-lg text-fg/80">{site.tagline}</p>
             <div className="mt-10 flex flex-wrap gap-4 font-mono text-sm">

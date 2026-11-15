@@ -3,8 +3,8 @@ export type SkillKey = { name: string; group: number; groupLabel: string };
 
 /** Cap colour + label ink per skill group (cycled). */
 export const CAP_COLORS = [
-  { body: "#ECE8DD", ink: "#24242C" },
-  { body: "#C6FF3D", ink: "#0B0B0F" },
-  { body: "#24242C", ink: "#ECE8DD" },
-  { body: "#9A98A6", ink: "#0B0B0F" },
+  { body: "#FFFFFF", ink: "#111318" },
+  { body: "#FF8A4C", ink: "#111318" },
+  { body: "#2A2D36", ink: "#F2F3F6" },
+  { body: "#AEB4C2", ink: "#111318" },
 ];

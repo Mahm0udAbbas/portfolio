@@ -1,5 +1,5 @@
 /**
- * "Prompt M" mark — the M's right leg becomes a `>` prompt, followed by a lime cursor.
+ * "Prompt M" mark — the M's right leg becomes a `>` prompt, followed by an accent cursor.
  * Strokes use currentColor. `pathLength=1` lets GSAP draw it via stroke-dashoffset (0 → 1).
  */
 export function Logo({ className, blink = true }: { className?: string; blink?: boolean }) {

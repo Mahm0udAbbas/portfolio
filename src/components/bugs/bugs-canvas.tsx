@@ -362,7 +362,7 @@ export default function BugsCanvas({
       <directionalLight position={[-200, 300, 400]} intensity={2.2} color="#FFF4E6" />
       <Environment resolution={64}>
         <Lightformer form="rect" intensity={3} position={[-5, 5, 5]} scale={[6, 4, 1]} />
-        <Lightformer form="ring" intensity={1.5} position={[3, -2, 4]} scale={3} color="#C6FF3D" />
+        <Lightformer form="ring" intensity={1.5} position={[3, -2, 4]} scale={3} color="#FF8A4C" />
       </Environment>
       <Bugs reduced={reduced} apiRef={apiRef} onFix={onFix} onCount={onCount} />
     </Canvas>

@@ -125,7 +125,7 @@ export function Preloader() {
           // anticipation squash before take-off
           .to(fly, { scaleX: 1.12, scaleY: 0.84, duration: 0.14, ease: "power2.out" }, "+=0.12")
           .addLabel("fly")
-          .to(el, { backgroundColor: "rgba(11,11,15,0)", duration: 0.7, ease: "power1.out" }, "fly")
+          .to(el, { backgroundColor: "rgba(238,240,244,0)", duration: 0.7, ease: "power1.out" }, "fly")
           .to(fly, { x: dx, duration: FLY + DROP * 0.5, ease: "power2.inOut" }, "fly")
           .to(fly, { scaleX: s, scaleY: s, duration: contact, ease: "power2.inOut" }, "fly")
           .to(fly, { y: dy - rise, duration: FLY, ease: "power2.out" }, "fly")
@@ -178,7 +178,7 @@ export function Preloader() {
     >
       <div
         data-term
-        className="absolute inset-x-4 top-1/2 mx-auto max-w-xl -translate-y-1/2 overflow-hidden rounded-xl border border-line bg-surface font-mono text-sm shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
+        className="term-dark absolute inset-x-4 top-1/2 mx-auto max-w-xl -translate-y-1/2 overflow-hidden rounded-xl border border-line bg-surface font-mono text-sm shadow-[0_30px_80px_-20px_rgba(17,19,24,0.45)]"
       >
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <span className="size-2.5 rounded-full bg-accent" />
@@ -190,7 +190,7 @@ export function Preloader() {
         <div className="min-h-44 space-y-2 px-5 py-4">
           {site.preloader.map((line, i) => (
             <div key={i} data-line className="invisible">
-              <span className="text-accent">❯</span> <span data-cmd />
+              <span className="text-accent-strong">❯</span> <span data-cmd />
               {line.out ? (
                 <div data-out className="invisible pl-4 text-muted">
                   {line.out}

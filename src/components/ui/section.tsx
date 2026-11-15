@@ -17,7 +17,7 @@ export function Section({
       <div className="mx-auto w-full max-w-6xl">
         {label && (
           <p className="mb-10 font-mono text-sm text-muted">
-            <span className="text-accent">~/</span>
+            <span className="text-accent-strong">~/</span>
             {label}
           </p>
         )}

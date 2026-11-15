@@ -1,7 +1,7 @@
 """
 Shared modelling helpers — prepended to build scripts by tools/blender_bridge.py:
     python -I tools/blender_bridge.py blender/_helpers.py blender/build_<thing>.py
-Style: smooth glossy "toy" plastic (cream / lime / charcoal). Objects face -Y (Blender front view).
+Style: smooth glossy "toy" plastic (white / soft orange / charcoal) for a light page. Objects face -Y (Blender front view).
 """
 import math
 import os
@@ -62,10 +62,10 @@ TOY = {}
 
 def toy_materials():
     TOY.update(
-        cream=material("Cream", "#ECE8DD", rough=0.3, coat=0.6),
-        lime=material("Lime", "#C6FF3D", rough=0.28, coat=0.6),
-        charcoal=material("Charcoal", "#24242C", rough=0.35, coat=0.5),
-        glow=material("Glow", "#C6FF3D", rough=0.2, emission="#C6FF3D", strength=0.5),
+        cream=material("White", "#F7F7F9", rough=0.3, coat=0.6),
+        accent=material("Accent", "#FF8A4C", rough=0.28, coat=0.6),
+        charcoal=material("Charcoal", "#2A2D36", rough=0.35, coat=0.5),
+        glow=material("Glow", "#FF8A4C", rough=0.2, emission="#FF8A4C", strength=0.5),
     )
     return TOY
 
@@ -193,7 +193,7 @@ def aim(obj, target):
     obj.rotation_euler = (Vector(target) - obj.location).to_track_quat("-Z", "Y").to_euler()
 
 
-def studio(scene, cam_loc, cam_target, lens=50, rim="#D8FF8A", rim_energy=350):
+def studio(scene, cam_loc, cam_target, lens=50, rim="#FFC79E", rim_energy=350, bg_color="#EEF0F4"):
     """Soft three-point studio on the site's background colour."""
     def area(name, loc, energy, size, color):
         d = bpy.data.lights.new(name, "AREA")
@@ -222,7 +222,7 @@ def studio(scene, cam_loc, cam_target, lens=50, rim="#D8FF8A", rim_energy=350):
     except Exception:
         pass
     bg = world.node_tree.nodes.get("Background")
-    bg.inputs["Color"].default_value = (*srgb("#0B0B0F"), 1)
+    bg.inputs["Color"].default_value = (*srgb(bg_color), 1)
     bg.inputs["Strength"].default_value = 1.0
 
     scene.render.engine = "BLENDER_EEVEE"

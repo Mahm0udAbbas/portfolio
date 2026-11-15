@@ -15,7 +15,7 @@ export function Contact() {
   return (
     <Section id="contact" label="contact">
       <h2 data-reveal className="max-w-3xl text-5xl font-semibold tracking-tight sm:text-7xl">
-        Let&apos;s build something<span className="text-accent">.</span>
+        Let&apos;s build something<span className="text-accent-strong">.</span>
       </h2>
       <p data-reveal className="mt-6 max-w-xl text-lg text-fg/70">
         Open to frontend roles and freelance work. The fastest way to reach me is email.
@@ -23,7 +23,7 @@ export function Contact() {
 
       <div data-reveal className="mt-12 rounded-2xl border border-line bg-surface p-6 font-mono text-sm sm:p-8">
         <p className="text-muted">
-          <span className="text-accent">❯</span> contact --list
+          <span className="text-accent-strong">❯</span> contact --list
         </p>
         <dl className="mt-5 grid grid-cols-[5.5rem_1fr] items-center gap-y-4 sm:grid-cols-[7rem_1fr]">
           {rows.map((r) => (
@@ -32,7 +32,7 @@ export function Contact() {
               <dd className="flex min-w-0 items-center gap-3">
                 <a
                   href={r.href}
-                  className="truncate text-base hover:text-accent sm:text-lg"
+                  className="truncate text-base hover:text-accent-strong sm:text-lg"
                   {...(r.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
                   {...(r.download ? { download: true } : {})}
                 >

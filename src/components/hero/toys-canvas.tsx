@@ -21,8 +21,8 @@ export type ToysInput = {
   onReady: () => void;
 };
 
-const LIME = new THREE.Color("#C6FF3D");
-const CHARCOAL = new THREE.Color("#24242C");
+const ACCENT = new THREE.Color("#FF8A4C");
+const CHARCOAL = new THREE.Color("#2A2D36");
 const { damp, clamp } = THREE.MathUtils;
 const easeOutBack = (x: number) => 1 + 2.4 * Math.pow(x - 1, 3) + 1.4 * Math.pow(x - 1, 2);
 
@@ -101,7 +101,7 @@ function stepToy(toy: Toy, { t, dt, p, ptr, scatter, enteredAt, reduced }: Frame
       const knob = P.ToggleKnob;
       if (knob) knob.obj.position.x = damp(knob.obj.position.x, toy.on ? knob.base.x : -knob.base.x, 12, dt);
       const mat = (root as THREE.Mesh).material as THREE.MeshStandardMaterial;
-      mat.color.lerp(toy.on ? LIME : CHARCOAL, 1 - Math.exp(-10 * dt));
+      mat.color.lerp(toy.on ? ACCENT : CHARCOAL, 1 - Math.exp(-10 * dt));
       break;
     }
     case "slider": {
@@ -160,7 +160,7 @@ function Toys({ progress, pointer, entered, reduced, onReady }: ToysInput) {
         const p = part(root, n);
         if (p) parts[n] = p;
       }
-      // Own material for the toggle track so turning it "off" doesn't recolour every lime part.
+      // Own material for the toggle track so turning it "off" doesn't recolour every accent part.
       if (kind === "toggle" && root instanceof THREE.Mesh && !root.userData.ownMaterial) {
         root.material = (root.material as THREE.Material).clone();
         root.userData.ownMaterial = true;
@@ -282,7 +282,7 @@ export default function ToysCanvas({ active, ...input }: ToysInput & { active: b
       <Environment resolution={128}>
         <Lightformer form="rect" intensity={3} position={[-5, 5, 5]} scale={[6, 4, 1]} />
         <Lightformer form="rect" intensity={1.4} position={[5, 0, 4]} scale={[4, 6, 1]} color="#DDE6FF" />
-        <Lightformer form="ring" intensity={2.2} position={[0, 4, -6]} scale={5} color="#C6FF3D" />
+        <Lightformer form="ring" intensity={2.2} position={[0, 4, -6]} scale={5} color="#FF8A4C" />
       </Environment>
       <Toys {...input} />
     </Canvas>

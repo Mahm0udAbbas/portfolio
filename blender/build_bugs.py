@@ -42,7 +42,7 @@ hips_x = {"Ladybug": 0.3, "Ant": 0.1, "Spider": 0.16}
 def ladybug(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
     p = "Ladybug"
     bug = empty(p, loc, coll, rot=rot)
-    squashed_sphere(f"{p}_Shell", 1.0, (0.5, 0.68, 0.36), (0, -0.08, 0.26), shell or M["lime"], coll, parent=bug)
+    squashed_sphere(f"{p}_Shell", 1.0, (0.5, 0.68, 0.36), (0, -0.08, 0.26), shell or M["accent"], coll, parent=bug)
     for i, (sx, sy, r) in enumerate([(-0.2, 0.08, 0.1), (0.2, 0.08, 0.1), (-0.18, -0.36, 0.085), (0.18, -0.36, 0.085)]):
         k = 1 - (sx / 0.5) ** 2 - ((sy + 0.08) / 0.68) ** 2
         sz = 0.26 + 0.36 * math.sqrt(max(k, 0)) - 0.025
@@ -61,7 +61,7 @@ def ladybug(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
 def ant(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
     p = "Ant"
     bug = empty(p, loc, coll, rot=rot)
-    squashed_sphere(f"{p}_Shell", 1.0, (0.3, 0.44, 0.27), (0, -0.5, 0.27), shell or M["lime"], coll, parent=bug)
+    squashed_sphere(f"{p}_Shell", 1.0, (0.3, 0.44, 0.27), (0, -0.5, 0.27), shell or M["accent"], coll, parent=bug)
     sphere(f"{p}_Waist", 0.075, (0, -0.07, 0.25), M["charcoal"], coll, parent=bug)
     squashed_sphere(f"{p}_Thorax", 1.0, (0.15, 0.3, 0.15), (0, 0.2, 0.27), M["charcoal"], coll, parent=bug)
     head = squashed_sphere(f"{p}_Head", 0.21, (1.0, 1.05, 0.85), (0, 0.66, 0.28), M["charcoal"], coll, parent=bug)
@@ -82,7 +82,7 @@ def ant(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
 def spider(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
     p = "Spider"
     bug = empty(p, loc, coll, rot=rot)
-    squashed_sphere(f"{p}_Shell", 1.0, (0.42, 0.5, 0.36), (0, -0.36, 0.33), shell or M["lime"], coll, parent=bug)
+    squashed_sphere(f"{p}_Shell", 1.0, (0.42, 0.5, 0.36), (0, -0.36, 0.33), shell or M["accent"], coll, parent=bug)
     # hourglass-ish marking on top
     for i, y in enumerate((-0.26, -0.46)):
         squashed_sphere(f"{p}_Mark{i}", 0.09, (1, 0.8, 0.4), (0, y, 0.67), M["charcoal"], coll, parent=bug)
@@ -161,7 +161,7 @@ for sp, vi, x, y in row:
 
 bm = bmesh.new()
 bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=30)
-_object("Floor", from_bmesh("Floor", bm, material("Floor", "#0B0B0F", rough=0.55)), (0, 0, -0.02), preview)
+_object("Floor", from_bmesh("Floor", bm, material("Floor", "#EEF0F4", rough=0.6)), (0, 0, -0.02), preview)
 
 studio(scene, cam_loc=(0.0, -8.6, 9.0), cam_target=(0.0, -1.3, 0.2), lens=40)
 scene.render.resolution_x, scene.render.resolution_y = 1600, 1100

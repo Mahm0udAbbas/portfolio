@@ -50,16 +50,16 @@ export function SkillsStage({ groups }: { groups: SkillGroup[] }) {
           type="button"
           onClick={() => setMode((m) => (m === "play" ? "arranged" : "play"))}
           aria-pressed={mode === "arranged"}
-          className="group absolute right-0 top-0 z-10 flex items-center gap-2 rounded-md border border-line bg-bg/70 px-3 py-2 font-mono text-sm backdrop-blur transition-colors hover:border-accent hover:text-accent"
+          className="group absolute right-0 top-0 z-10 flex items-center gap-2 rounded-md border border-line bg-bg/70 px-3 py-2 font-mono text-sm backdrop-blur transition-colors hover:border-accent hover:text-accent-strong"
         >
-          <span className="text-accent transition-transform group-hover:rotate-90">{mode === "play" ? "⌗" : "✸"}</span>
+          <span className="text-accent-strong transition-transform group-hover:rotate-90">{mode === "play" ? "⌗" : "✸"}</span>
           {mode === "play" ? "arrange" : "explode"}
         </button>
 
         <p className="pointer-events-none absolute bottom-3 left-0 font-mono text-sm" aria-live="polite">
           {hovered ? (
             <>
-              <span className="text-accent">❯</span> {hovered.name} <span className="text-muted">· {hovered.groupLabel}</span>
+              <span className="text-accent-strong">❯</span> {hovered.name} <span className="text-muted">· {hovered.groupLabel}</span>
             </>
           ) : (
             <span className="text-muted">

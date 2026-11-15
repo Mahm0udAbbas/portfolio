@@ -156,7 +156,7 @@ export function CommandTerminal() {
             line(
               "out",
               <>
-                <span className="text-accent">{String(i + 1).padStart(2, "0")}</span> {p.title}{" "}
+                <span className="text-accent-strong">{String(i + 1).padStart(2, "0")}</span> {p.title}{" "}
                 <span className="text-muted">— {p.tagline}</span>
               </>,
             ),
@@ -280,17 +280,17 @@ export function CommandTerminal() {
   const color: Record<Kind, string> = {
     in: "text-fg",
     out: "text-fg/85",
-    ok: "text-accent",
+    ok: "text-accent-strong",
     err: "text-[#ff6b6b]",
     dim: "text-muted",
   };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Command terminal">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setOpen(false)} aria-hidden="true" />
+      <div className="absolute inset-0 bg-[#111318]/40 backdrop-blur-[3px]" onClick={() => setOpen(false)} aria-hidden="true" />
       <div
         ref={panel}
-        className="relative flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface font-mono text-sm shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]"
+        className="term-dark relative flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-line bg-surface font-mono text-sm shadow-[0_30px_80px_-20px_rgba(17,19,24,0.5)]"
         onClick={() => input.current?.focus()}
       >
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
@@ -305,7 +305,7 @@ export function CommandTerminal() {
             <div key={l.id} className={`whitespace-pre-wrap break-words ${color[l.kind]}`}>
               {l.kind === "in" ? (
                 <>
-                  <span className="text-accent">❯</span> {l.text}
+                  <span className="text-accent-strong">❯</span> {l.text}
                 </>
               ) : (
                 l.text
@@ -313,7 +313,7 @@ export function CommandTerminal() {
             </div>
           ))}
           <label className="flex items-center gap-2">
-            <span className="text-accent">❯</span>
+            <span className="text-accent-strong">❯</span>
             <span className="sr-only">Command</span>
             <input
               ref={input}

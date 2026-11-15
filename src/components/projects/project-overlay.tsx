@@ -145,7 +145,7 @@ export function ProjectOverlay({ slug, children }: { slug: string; children: Rea
       aria-labelledby="project-title"
       className="fixed inset-0 z-[60] [perspective:2200px]"
     >
-      <div ref={backdrop} aria-hidden="true" className="absolute inset-0 bg-black/70 opacity-0" onClick={close} />
+      <div ref={backdrop} aria-hidden="true" className="absolute inset-0 bg-[#111318]/55 opacity-0" onClick={close} />
 
       <div ref={flipper} className="fixed left-0 top-0 h-dvh w-screen [transform-style:preserve-3d]">
         {/* Front: the card */}
@@ -168,7 +168,7 @@ export function ProjectOverlay({ slug, children }: { slug: string; children: Rea
         ref={closeBtn}
         type="button"
         onClick={close}
-        className="invisible absolute right-4 top-4 z-10 rounded-md border border-line bg-bg/80 px-3 py-2 font-mono text-sm backdrop-blur hover:border-accent hover:text-accent sm:right-8 sm:top-6"
+        className="invisible absolute right-4 top-4 z-10 rounded-md border border-line bg-bg/80 px-3 py-2 font-mono text-sm backdrop-blur hover:border-accent hover:text-accent-strong sm:right-8 sm:top-6"
       >
         <span className="text-muted">[esc]</span> close
       </button>

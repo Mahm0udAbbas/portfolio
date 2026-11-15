@@ -32,7 +32,7 @@ export function ProjectStack({ projects }: { projects: Project[] }) {
           });
           tl.to(item.querySelector("[data-stack-layer]"), { scale: 0.94, transformOrigin: "50% 0%", ease: "none" }, 0).to(
             item.querySelectorAll("[data-stack-shade]"),
-            { opacity: 0.55, ease: "none" },
+            { opacity: 0.22, ease: "none" },
             0,
           );
         });
@@ -111,9 +111,9 @@ function ProjectCard({ project: p, index: i }: { project: Project; index: number
             className="relative z-10 -mb-px flex h-(--tab) items-center gap-3 rounded-t-xl border border-b-0 border-line bg-surface px-5 font-mono text-sm transition-colors group-hover:border-accent/60 group-focus-visible:border-accent"
             style={{ marginLeft: tabOffset }}
           >
-            <span className="text-accent">{String(i + 1).padStart(2, "0")}</span>
+            <span className="text-accent-strong">{String(i + 1).padStart(2, "0")}</span>
             <span className="truncate text-fg">{p.title}</span>
-            <span data-stack-shade aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[inherit] bg-black opacity-0" />
+            <span data-stack-shade aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[#111318] opacity-0" />
           </div>
         </div>
 
@@ -138,14 +138,14 @@ function ProjectCard({ project: p, index: i }: { project: Project; index: number
                 ))}
               </ul>
             </div>
-            <p className="font-mono text-sm text-muted transition-colors group-hover:text-accent">
+            <p className="font-mono text-sm text-muted transition-colors group-hover:text-accent-strong">
               open project <span className="inline-block transition-transform group-hover:translate-x-1">↗</span>
             </p>
           </div>
 
           <ProjectMedia project={p} index={i} className="hidden min-h-0 md:flex" />
 
-          <div data-stack-shade aria-hidden="true" className="pointer-events-none absolute inset-0 bg-black opacity-0" />
+          <div data-stack-shade aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[#111318] opacity-0" />
         </article>
       </Link>
     </div>

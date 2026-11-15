@@ -292,7 +292,7 @@ function Keycap({ skill, index, geometry, spreadX, font, onHover, onGrab, regist
           roughness={0.32}
           clearcoat={0.6}
           clearcoatRoughness={0.1}
-          emissive="#C6FF3D"
+          emissive="#FF8A4C"
           emissiveIntensity={hovered ? 0.22 : 0}
         />
       </mesh>
@@ -418,7 +418,7 @@ function Pile({
       </RigidBody>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[60, 60]} />
-        <shadowMaterial opacity={0.4} />
+        <shadowMaterial opacity={0.18} />
       </mesh>
     </>
   );
@@ -460,7 +460,7 @@ export default function KeycapPile({
       <Environment resolution={128}>
         <Lightformer form="rect" intensity={3} position={[-5, 6, 5]} scale={[6, 4, 1]} />
         <Lightformer form="rect" intensity={1.4} position={[6, 2, 4]} scale={[4, 6, 1]} color="#DDE6FF" />
-        <Lightformer form="ring" intensity={2} position={[0, 5, -6]} scale={5} color="#C6FF3D" />
+        <Lightformer form="ring" intensity={2} position={[0, 5, -6]} scale={5} color="#FF8A4C" />
       </Environment>
       <Physics paused={!running} gravity={[0, -GRAVITY, 0]}>
         <Pile skills={skills} mode={mode} onHover={onHover} />

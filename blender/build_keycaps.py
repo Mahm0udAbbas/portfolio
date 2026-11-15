@@ -35,7 +35,7 @@ def keycap(name, units, loc, mat, coll, rot=(0, 0, 0)):
 
 # Export set (spaced out so the preview shows them; positions don't matter on the web)
 keycap("Key1u", 1.0, (-2.2, 0, 0), M["cream"], export)
-keycap("Key15u", 1.5, (-0.6, 0, 0), M["lime"], export)
+keycap("Key15u", 1.5, (-0.6, 0, 0), M["accent"], export)
 keycap("Key2u", 2.0, (1.6, 0, 0), M["charcoal"], export)
 
 # A little pile for the preview render only
@@ -44,12 +44,12 @@ import random
 random.seed(7)
 for i in range(9):
     units = random.choice([1.0, 1.0, 1.5, 2.0])
-    mat = random.choice([M["cream"], M["cream"], M["lime"], M["charcoal"]])
+    mat = random.choice([M["cream"], M["cream"], M["accent"], M["charcoal"]])
     keycap(f"Pile{i}", units, (random.uniform(-2.5, 2.5), random.uniform(1.6, 3.4), random.uniform(0, 0.4)),
            mat, preview, rot=(random.uniform(-0.4, 0.4), random.uniform(-0.4, 0.4), random.uniform(-1, 1)))
 bm = bmesh.new()
 bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=30)
-_object("Floor", from_bmesh("Floor", bm, material("Floor", "#0B0B0F", rough=0.55)), (0, 0, 0), preview)
+_object("Floor", from_bmesh("Floor", bm, material("Floor", "#EEF0F4", rough=0.6)), (0, 0, 0), preview)
 
 studio(scene, cam_loc=(0.6, -7.5, 4.6), cam_target=(0, 1.2, 0.3), lens=45)
 scene.render.resolution_x, scene.render.resolution_y = 1600, 1000

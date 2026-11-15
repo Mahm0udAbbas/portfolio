@@ -26,7 +26,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
       <Header />
       <main className="pt-(--header-h)">
         <div className="mx-auto max-w-5xl px-4 pt-10 sm:px-8">
-          <Link href="/#projects" className="font-mono text-sm text-muted hover:text-accent">
+          <Link href="/#projects" className="font-mono text-sm text-muted hover:text-accent-strong">
             ← cd ../projects
           </Link>
         </div>

@@ -19,7 +19,7 @@ export function CopyEmail({ email }: { email: string }) {
     <button
       type="button"
       onClick={copy}
-      className="rounded-md border border-line px-2 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+      className="rounded-md border border-line px-2 py-0.5 text-xs text-muted transition-colors hover:border-accent hover:text-accent-strong"
       aria-live="polite"
     >
       {state === "copied" ? "copied ✓" : state === "failed" ? "copy failed" : "copy"}

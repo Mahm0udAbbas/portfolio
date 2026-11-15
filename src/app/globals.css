@@ -1,17 +1,30 @@
 @import "tailwindcss";
 @import "lenis/dist/lenis.css";
 
-/* Design tokens — terminal-noir */
+/* Design tokens — light (cool gray) with a soft-orange accent */
 :root {
-  --bg: #0b0b0f;
-  --surface: #14141b;
-  --surface-2: #1c1c25;
-  --line: #2a2a36;
-  --fg: #e8e8ee;
-  --muted: #8b8b9a;
-  --accent: #c6ff3d;
-  --accent-ink: #0b0b0f; /* text on accent */
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --line: #d9dde5;
+  --fg: #111318;
+  --muted: #646a78;
+  --accent: #ff9a5c; /* fills: buttons, bars, dots, the logo cursor */
+  --accent-strong: #c2410c; /* orange text/strokes — readable on light backgrounds */
+  --accent-ink: #111318; /* text on accent fills */
   --header-h: 4.5rem;
+}
+
+/* Terminal windows (preloader, Ctrl K) stay dark on the light page */
+.term-dark {
+  --bg: #14161c;
+  --surface: #1b1d24;
+  --surface-2: #23262f;
+  --line: #323642;
+  --fg: #eceef2;
+  --muted: #9298a6;
+  --accent-strong: #ffad7a;
+  color: var(--fg);
 }
 
 @theme inline {
@@ -22,6 +35,7 @@
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
   --color-accent-ink: var(--accent-ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-jetbrains-mono);
@@ -29,7 +43,7 @@
 
 html {
   background: var(--bg);
-  color-scheme: dark;
+  color-scheme: light;
   scroll-padding-top: var(--header-h);
 }
 

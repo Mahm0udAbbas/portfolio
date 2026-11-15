@@ -77,7 +77,7 @@ export function Header() {
             aria-controls="mobile-menu"
             className="font-mono text-sm text-fg md:hidden"
           >
-            <span className="text-accent">[</span> {open ? "close" : "menu"} <span className="text-accent">]</span>
+            <span className="text-accent-strong">[</span> {open ? "close" : "menu"} <span className="text-accent-strong">]</span>
           </button>
 
           <ul className="hidden gap-7 font-mono text-sm md:flex">
@@ -88,7 +88,7 @@ export function Header() {
                   <a
                     href={`${base}#${item.id}`}
                     aria-current={isActive ? "true" : undefined}
-                    className={`group relative py-1 transition-colors hover:text-fg ${isActive ? "text-accent" : "text-muted"}`}
+                    className={`group relative py-1 transition-colors hover:text-fg ${isActive ? "text-accent-strong" : "text-muted"}`}
                   >
                     <span className={`mr-1 transition-opacity ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"}`}>
                       ❯
@@ -107,9 +107,9 @@ export function Header() {
             type="button"
             onClick={() => window.dispatchEvent(new Event(OPEN_TERMINAL))}
             aria-label="Open command terminal"
-            className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:border-accent hover:text-accent"
+            className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:border-accent hover:text-accent-strong"
           >
-            <span className="text-accent">&gt;_</span>
+            <span className="text-accent-strong">&gt;_</span>
             <kbd className="hidden font-mono sm:inline">Ctrl K</kbd>
           </button>
           <a href={`${base}#hero`} data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
@@ -130,7 +130,7 @@ export function Header() {
               <a
                 href={`${base}#${item.id}`}
                 onClick={(e) => (base ? setOpen(false) : goTo(e, item.id))}
-                className={`flex items-baseline gap-4 text-4xl font-semibold ${active === item.id ? "text-accent" : "text-fg"}`}
+                className={`flex items-baseline gap-4 text-4xl font-semibold ${active === item.id ? "text-accent-strong" : "text-fg"}`}
               >
                 <span className="font-mono text-sm text-muted">{String(i + 1).padStart(2, "0")}</span>
                 {item.label}

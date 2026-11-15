@@ -28,7 +28,7 @@ export function About() {
 
         <div>
           <h2 data-reveal className="mb-8 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Hi, I&apos;m {site.name.split(" ")[0]}<span className="text-accent">.</span>
+            Hi, I&apos;m {site.name.split(" ")[0]}<span className="text-accent-strong">.</span>
           </h2>
           <div data-reveal data-reveal-children>
             {bio.map((p) => (
@@ -43,7 +43,7 @@ export function About() {
                 <dt className="font-mono text-xs text-muted">{s.label}</dt>
                 <dd className="mt-1 text-4xl font-semibold tabular-nums sm:text-5xl">
                   <span data-count={s.value}>{s.value}</span>
-                  <span className="text-accent">{s.suffix}</span>
+                  <span className="text-accent-strong">{s.suffix}</span>
                 </dd>
               </div>
             ))}

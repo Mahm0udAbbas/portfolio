@@ -83,7 +83,7 @@ export function BugsLayer() {
       {toasts.map((t) => (
         <span
           key={t.id}
-          className="bug-toast absolute -translate-x-1/2 whitespace-nowrap font-mono text-xs text-accent"
+          className="bug-toast absolute -translate-x-1/2 whitespace-nowrap font-mono text-xs text-accent-strong"
           style={{ left: t.x, top: t.y }}
         >
           {"// bug fixed ✓"}
@@ -107,11 +107,11 @@ export function BugCounter() {
         <>scanning for bugs</>
       ) : n === 0 ? (
         <>
-          <span className="text-accent">0</span> bugs remaining — ship it 🚀
+          <span className="text-accent-strong">0</span> bugs remaining — ship it 🚀
         </>
       ) : (
         <>
-          <span className="text-accent">{n}</span> bug{n === 1 ? "" : "s"} remaining · click to fix
+          <span className="text-accent-strong">{n}</span> bug{n === 1 ? "" : "s"} remaining · click to fix
         </>
       )}
       <span className="cursor-blink">_</span>
