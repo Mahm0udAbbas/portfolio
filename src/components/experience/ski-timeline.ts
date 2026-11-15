@@ -42,6 +42,40 @@ export function zoomAt(kind: SegKind, t: number) {
   return u <= 0 || u >= 1 ? 0 : Math.sin(Math.PI * u) ** 1.4;
 }
 
+/** Natural seconds to play a whole segment of each kind when gliding on its own. */
+const SECONDS: Record<SegKind, number> = { intro: 2, summit: 4.5, descent: 11, lift: 9, end: 3 };
+const REST_T = 0.32; // where a summit "rests" (arrived, card up)
+
+/** Progress points where the run can rest: each summit (card shown) and the end. */
+export const RESTS = SEGMENTS.flatMap((s, k) =>
+  s.kind === "summit" ? [STARTS[k] + (REST_T * s.w) / TOTAL] : s.kind === "end" ? [0.995] : [],
+);
+
+/**
+ * When the visitor stops scrolling mid-travel, glide on to the next (or previous) rest point at a
+ * natural speed. Returns null when already resting (on a summit, in the intro or at the end).
+ */
+export function glideFrom(p: number, dir: 1 | -1): { to: number; seconds: number } | null {
+  const { seg, t } = segmentAt(p);
+  const resting =
+    seg.kind === "intro" ||
+    seg.kind === "end" ||
+    (seg.kind === "summit" && t > SUMMIT_ARRIVE && t < SUMMIT_LEAVE);
+  if (resting) return null;
+  const to = dir > 0 ? RESTS.find((r) => r > p + 1e-4) : [...RESTS].reverse().find((r) => r < p - 1e-4);
+  if (to === undefined) return null;
+  // time = sum of each segment's share of the distance x its natural duration
+  let seconds = 0;
+  const [a, b] = p < to ? [p, to] : [to, p];
+  SEGMENTS.forEach((s, k) => {
+    const s0 = STARTS[k];
+    const s1 = s0 + s.w / TOTAL;
+    const overlap = Math.max(0, Math.min(b, s1) - Math.max(a, s0));
+    seconds += (overlap / (s.w / TOTAL)) * SECONDS[s.kind];
+  });
+  return { to, seconds: Math.max(0.8, seconds) };
+}
+
 export type Card =
   | { kind: "intro" }
   | { kind: "entry"; index: number }

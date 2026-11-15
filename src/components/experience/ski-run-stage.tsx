@@ -8,8 +8,8 @@ import { useGSAP } from "@gsap/react";
 import type { Experience } from "@/content/site";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { scrollToSection } from "@/lib/lenis";
-import { CHECKPOINTS, cardAt, type Card } from "./ski-timeline";
+import { getLenis, scrollToSection } from "@/lib/lenis";
+import { CHECKPOINTS, cardAt, glideFrom, type Card } from "./ski-timeline";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -62,12 +62,44 @@ function SkiRun({ entries }: { entries: Experience[] }) {
   useGSAP(
     () => {
       let last = "intro";
-      ScrollTrigger.create({
+      let idle: ReturnType<typeof setTimeout> | undefined;
+      let gliding = false;
+      let lastDir: 1 | -1 = 1;
+      const st = ScrollTrigger.create({
         trigger: wrap.current,
         start: "top top",
         end: "bottom bottom",
         onUpdate: (self) => {
           progress.current = self.progress;
+          if (self.direction) lastDir = self.direction as 1 | -1;
+          // A real skier doesn't freeze mid-slope: when scrolling stops during a descent or a lift
+          // ride, glide on to the next summit at a natural speed (any new scroll takes over).
+          clearTimeout(idle);
+          if (!gliding) {
+            idle = setTimeout(() => {
+              const g = glideFrom(st.progress, lastDir);
+              const lenis = getLenis();
+              if (!g || !lenis) return;
+              gliding = true;
+              const y = st.start + (st.end - st.start) * g.to;
+              lenis.scrollTo(y, {
+                duration: g.seconds,
+                easing: (x: number) => (x < 0.12 ? (x / 0.12) ** 2 * 0.12 : x > 0.9 ? 1 - ((1 - x) / 0.1) ** 2 * 0.1 : x),
+                onComplete: () => {
+                  gliding = false;
+                },
+              });
+              const stop = () => {
+                gliding = false;
+                window.removeEventListener("wheel", stop);
+                window.removeEventListener("touchstart", stop);
+                window.removeEventListener("keydown", stop);
+              };
+              window.addEventListener("wheel", stop, { passive: true, once: true });
+              window.addEventListener("touchstart", stop, { passive: true, once: true });
+              window.addEventListener("keydown", stop, { once: true });
+            }, 450);
+          }
           const c = cardAt(self.progress);
           const k = keyOf(c);
           if (k !== last) {
@@ -76,6 +108,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
           }
         },
       });
+      return () => clearTimeout(idle);
     },
     { scope: wrap, dependencies: [count] },
   );

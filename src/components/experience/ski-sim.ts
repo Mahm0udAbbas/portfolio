@@ -50,19 +50,28 @@ const J_NAMES = [
 ] as const;
 const deg = THREE.MathUtils.degToRad;
 
-/** Athletic carving stance. a = angulation (+ = turning right), c = extra crouch, reachL/R = pole reach. */
-function carvePose(a: number, c: number, reachL: number, reachR: number): Pose {
+/**
+ * Carving technique. turn: -1..1 (+ = turning LEFT, i.e. yaw increasing), lean: whole-body inclination
+ * already applied to the root, c: extra flex, reachL/R: pole-plant swing of each arm (0..1).
+ *  - legs incline with the body, but the upper body stays quiet and level (angulation)
+ *  - the upper body counter-rotates to face down the hill; the head stays steady
+ *  - the inside leg flexes more, knees drive into the turn, ankles roll the skis onto their edges
+ *  - sink through the turn, rise between turns (c), pole plant on the new inside at each turn start
+ */
+function carvePose(turn: number, lean: number, c: number, reachL: number, reachR: number): Pose {
   const f = 1 + c;
+  const inL = Math.max(turn, 0); // left turn → left leg is the inside leg
+  const inR = Math.max(-turn, 0);
   return {
-    Pelvis: [0, 0, -a],
-    Spine: [-0.38 * f, 0, a * 0.8],
-    Neck: [0.22 * f, 0, 0],
-    HipL: [0.62 * f, 0, 0], HipR: [0.62 * f, 0, 0],
-    KneeL: [-0.95 * f, 0, 0], KneeR: [-0.95 * f, 0, 0],
-    AnkleL: [0.33 * f, 0, a], AnkleR: [0.33 * f, 0, a],
-    ShoulderL: [0.5 + reachL, deg(-12), 0], ShoulderR: [0.5 + reachR, deg(12), 0],
-    ElbowL: [0.75 - reachL * 0.5, 0, 0], ElbowR: [0.75 - reachR * 0.5, 0, 0],
-    PoleL: [-1.45 + reachL * 0.9, 0, 0], PoleR: [-1.45 + reachR * 0.9, 0, 0],
+    Pelvis: [0, turn * 0.12, 0],
+    Spine: [-0.42 * f, -turn * 0.38, -lean * 0.75],
+    Neck: [0.24 * f, turn * 0.3, lean * 0.25],
+    HipL: [0.62 * f + inL * 0.35, 0, lean * 0.35], HipR: [0.62 * f + inR * 0.35, 0, lean * 0.35],
+    KneeL: [-0.95 * f - inL * 0.45, 0, 0], KneeR: [-0.95 * f - inR * 0.45, 0, 0],
+    AnkleL: [0.33 * f + inL * 0.1, 0, lean * 0.3], AnkleR: [0.33 * f + inR * 0.1, 0, lean * 0.3],
+    ShoulderL: [0.6 + reachL * 0.65, deg(-16), 0], ShoulderR: [0.6 + reachR * 0.65, deg(16), 0],
+    ElbowL: [0.85 - reachL * 0.35, 0, 0], ElbowR: [0.85 - reachR * 0.35, 0, 0],
+    PoleL: [-1.5 + reachL * 1.15, 0, 0], PoleR: [-1.5 + reachR * 1.15, 0, 0],
   };
 }
 const STAND = (look: number): Pose => ({
@@ -100,8 +109,6 @@ const SKATE = (phase: number): Pose => {
 
 const SNOW_COUNT = 1400;
 const SPRAY_COUNT = 400;
-const OVERVIEW_POS = new THREE.Vector3(-150, 150, 110);
-const OVERVIEW_LOOK = new THREE.Vector3(30, 28, -25);
 const UP = new THREE.Vector3(0, 1, 0);
 
 export type TreeData = { variants: string[]; trees: number[][] };
@@ -135,6 +142,9 @@ export class SkiRunSim {
   private camLook = new THREE.Vector3();
   private pos = new THREE.Vector3();
   private snapNext = true;
+  // coarse terrain height grid (max height per 4 m cell) for camera collision
+  private hm: Float32Array | null = null;
+  private hmBox = { x0: 0, z0: 0, nx: 0, nz: 0, cell: 4 };
 
   // ── setup ────────────────────────────────────────────────────────────────
   attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean) {
@@ -147,6 +157,7 @@ export class SkiRunSim {
     if (terrain) {
       terrain.material = terrainMaterial(tex.snow, tex.rock);
       terrain.receiveShadow = true;
+      this.buildHeightmap(terrain);
     }
     for (const name of ["Kicker", "Lift_1", "Lift_2"]) {
       scene.getObjectByName(name)?.traverse((o) => {
@@ -200,6 +211,45 @@ export class SkiRunSim {
     this.root.add(this.sun, this.sun.target);
 
     this.root.add(this.buildRing(), this.buildSpray(), this.buildSnow(reduced), ...this.buildTracks());
+  }
+
+  private buildHeightmap(terrain: THREE.Mesh) {
+    terrain.updateWorldMatrix(true, false);
+    const g = terrain.geometry;
+    g.computeBoundingBox();
+    const bb = g.boundingBox!.clone().applyMatrix4(terrain.matrixWorld);
+    const cell = 4;
+    const nx = Math.ceil((bb.max.x - bb.min.x) / cell) + 1;
+    const nz = Math.ceil((bb.max.z - bb.min.z) / cell) + 1;
+    const hm = new Float32Array(nx * nz).fill(-1e9);
+    const posAttr = g.attributes.position as THREE.BufferAttribute;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < posAttr.count; i++) {
+      v.fromBufferAttribute(posAttr, i).applyMatrix4(terrain.matrixWorld);
+      const cx = Math.round((v.x - bb.min.x) / cell);
+      const cz = Math.round((v.z - bb.min.z) / cell);
+      const k = cz * nx + cx;
+      if (v.y > hm[k]) hm[k] = v.y;
+    }
+    for (let k = 0; k < hm.length; k++) if (hm[k] < -1e8) hm[k] = hm[Math.max(0, k - 1)];
+    this.hm = hm;
+    this.hmBox = { x0: bb.min.x, z0: bb.min.z, nx, nz, cell };
+  }
+
+  private groundAt(x: number, z: number) {
+    const { x0, z0, nx, nz, cell } = this.hmBox;
+    if (!this.hm) return -1e9;
+    const cx = Math.round((x - x0) / cell);
+    const cz = Math.round((z - z0) / cell);
+    if (cx < 0 || cz < 0 || cx >= nx || cz >= nz) return -1e9;
+    let h = -1e9; // max of the cell and its neighbours = safe clearance
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const ix = Math.min(Math.max(cx + dx, 0), nx - 1);
+        const iz = Math.min(Math.max(cz + dz, 0), nz - 1);
+        h = Math.max(h, this.hm[iz * nx + ix]);
+      }
+    return h;
   }
 
   addTrees(scene: THREE.Object3D, data: TreeData) {
@@ -354,19 +404,20 @@ export class SkiRunSim {
       const pts = DESC[seg.i];
       along(pts, u, pos);
       travelYaw = yawAlong(pts, u);
-      // curvature → lean & angulation; a new turn → pole plant on the new inside hand
+      // curvature (+ = turning left) → lean INTO the turn; each new turn → pole plant on the new inside hand
       const curv = angleDiff(yawAlong(pts, u + 0.02), yawAlong(pts, u - 0.02));
-      const turn = Math.max(-1, Math.min(1, curv * 2.2));
-      carveRoll = -turn * 0.55;
-      const sign = Math.sign(turn);
+      const turn = Math.max(-1, Math.min(1, curv * 2.4));
+      carveRoll = turn * 0.72;
+      const sign = Math.abs(turn) > 0.18 ? Math.sign(turn) : 0;
       if (sign !== 0 && sign !== this.lastTurnSign && dp !== 0) {
-        if (sign > 0) this.reachL = 0.55;
-        else this.reachR = 0.55;
+        if (sign > 0) this.reachL = 1;
+        else this.reachR = 1;
         this.lastTurnSign = sign;
       }
-      this.reachL *= Math.exp(-3.5 * dt);
-      this.reachR *= Math.exp(-3.5 * dt);
-      pose = carvePose(turn * 0.35, 0.08 + 0.22 * Math.abs(turn), this.reachL, this.reachR);
+      this.reachL *= Math.exp(-2.8 * dt);
+      this.reachR *= Math.exp(-2.8 * dt);
+      // sink through the turn, rise (unweight) through the transition
+      pose = carvePose(turn, this.roll, 0.02 + 0.38 * Math.abs(turn), this.reachL, this.reachR);
       if (seg.i === 0 && u > JUMP_A - 0.03 && u < JUMP_B + 0.02) {
         // the career-switch jump: crouch on the kicker, arc through the air in a tuck, absorb the landing
         const ja = (u - JUMP_A) / (JUMP_B - JUMP_A);
@@ -377,7 +428,7 @@ export class SkiRunSim {
           pose = TUCK;
           tucked = true;
           carveRoll = 0;
-        } else pose = carvePose(0, 0.55, 0, 0);
+        } else pose = carvePose(0, 0, 0.55, 0, 0);
       }
     } else if (seg.kind === "lift") {
       const line = LIFTS[seg.i];
@@ -438,16 +489,19 @@ export class SkiRunSim {
     const zoom = zoomAt(seg.kind, u);
     const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const side = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const want = pos.clone().addScaledVector(fwd, -26).addScaledVector(side, 8).add(new THREE.Vector3(0, 38, 0));
-    const look = pos.clone().addScaledVector(fwd, 10);
+    const want = pos.clone().addScaledVector(fwd, -14).addScaledVector(side, 4).add(new THREE.Vector3(0, 10, 0));
+    const look = pos.clone().addScaledVector(fwd, 6).add(new THREE.Vector3(0, 0.6, 0));
     const close = pos.clone().addScaledVector(side, 3.3).addScaledVector(fwd, 1.6).add(new THREE.Vector3(0, 1.65, 0));
     want.lerp(close, zoom);
     look.lerp(pos.clone().add(new THREE.Vector3(0, 1.2, 0)), zoom);
     if (seg.kind === "end") {
+      // pull back behind the skier on the top summit, looking out over the range you skied
       const w = smooth(u / 0.7);
-      want.lerp(OVERVIEW_POS, w);
-      look.lerp(OVERVIEW_LOOK, w);
+      want.lerp(pos.clone().addScaledVector(fwd, -24).add(new THREE.Vector3(0, 14, 0)), w);
+      look.lerp(pos.clone().addScaledVector(fwd, 90).add(new THREE.Vector3(0, -25, 0)), w);
     }
+    // never let the camera dip into the mountain
+    want.y = Math.max(want.y, this.groundAt(want.x, want.z) + (zoom > 0.5 ? 1.2 : 3.5));
     const kc = snap ? 1 : damp(zoom > 0.02 ? 3.2 : 1.8, dt);
     this.camPos.lerp(want, kc);
     this.camLook.lerp(look, kc);
@@ -585,8 +639,12 @@ function terrainMaterial(snow: THREE.Texture, rock: THREE.Texture) {
         // the aerial snow photo is a bluish grey (~0.53): lift it to fresh, bright snow, keep its grain
         snowC = mix(clamp(snowC * 1.55, 0.0, 1.0), vec3(0.97, 0.98, 1.0), 0.45);
         vec3 groomed = mix(snowC, vec3(0.975, 0.982, 0.995), vMask.g * 0.8);
-        // rock only on genuinely steep faces; anything facing up holds snow
-        float rockAmt = smoothstep(0.35, 0.9, vMask.r) * (1.0 - smoothstep(0.72, 0.9, normalize(vWNormal).y));
+        // winter: snow everywhere except true cliffs; exposed rock is cold grey and dusted with snow
+        float grey = dot(rockC, vec3(0.299, 0.587, 0.114));
+        rockC = mix(rockC, vec3(grey), 0.75) * vec3(0.86, 0.9, 0.98);
+        rockC = mix(rockC, snowC, 0.22);
+        float ny = normalize(vWNormal).y;
+        float rockAmt = smoothstep(0.55, 0.95, vMask.r) * (1.0 - smoothstep(0.42, 0.6, ny)) * 0.9;
         diffuseColor.rgb *= mix(groomed, rockC, rockAmt);`,
       );
   };
