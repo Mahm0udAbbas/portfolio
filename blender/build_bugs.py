@@ -96,16 +96,75 @@ def spider(coll, loc=(0, 0, 0), rot=(0, 0, 0), shell=None):
     return bug
 
 
-ladybug(export, loc=(-2.6, 0, 0))
-ant(export, loc=(0, 0, 0))
-spider(export, loc=(2.8, 0, 0))
+# Real colourways — mirrors src/components/bugs/bug-palettes.ts (the web recolours per bug from that file)
+PALETTES = {
+    "Ladybug": [
+        dict(shell="#D3201B", spots="#121214", head="#151517", legs="#151517", eyes="#F4F1EA"),  # seven-spot
+        dict(shell="#EE7418", spots="#121214", head="#151517", legs="#151517", eyes="#F4F1EA"),  # harlequin
+        dict(shell="#F5C21A", spots="#121214", head="#151517", legs="#2A2318", eyes="#F4F1EA"),  # 22-spot
+    ],
+    "Ant": [
+        dict(shell="#6E2410", spots="#6E2410", head="#B4421C", legs="#8E3416", eyes="#111113"),  # fire ant
+        dict(shell="#16161A", spots="#16161A", head="#1B1B1F", legs="#3A1F14", eyes="#0D0D0F",
+             Thorax="#A93C19", Waist="#A93C19"),  # red wood ant
+    ],
+    "Spider": [
+        dict(shell="#17171C", spots="#E3242B", head="#17171C", legs="#1C1C22", eyes="#3E3E48"),  # black widow
+        dict(shell="#F08A1E", spots="#6B3410", head="#8A5528", legs="#7A4A22", eyes="#121214"),  # orange orb-weaver
+    ],
+}
+import re
+
+_mat_cache = {}
+
+
+def role_of(part):
+    if part == "Shell":
+        return "shell"
+    if re.match(r"^(Spot|Mark)", part):
+        return "spots"
+    if re.match(r"^(Head|Thorax|Waist)$", part):
+        return "head"
+    if re.match(r"^(Leg_|Antenna|Jaw)", part):
+        return "legs"
+    if part.startswith("Eye"):
+        return "eyes"
+    return None
+
+
+def paint(root, species, palette):
+    for o in [root, *root.children_recursive]:
+        if o.type != "MESH":
+            continue
+        part = o.name.split(".")[0][len(species) + 1:]
+        role = role_of(part)
+        if not role:
+            continue
+        color = palette.get(part, palette[role])
+        key = (color, role == "shell" or role == "spots")
+        if key not in _mat_cache:
+            glossy = key[1]
+            _mat_cache[key] = material(f"Bug{color}", color, rough=0.22 if glossy else 0.35, coat=0.9 if glossy else 0.4)
+        o.data = o.data.copy()
+        o.data.materials.clear()
+        o.data.materials.append(_mat_cache[key])
+
+
+builders = {"Ladybug": ladybug, "Ant": ant, "Spider": spider}
+for sp, x in (("Ladybug", -2.6), ("Ant", 0), ("Spider", 2.8)):
+    paint(builders[sp](export, loc=(x, 0, 0)), sp, PALETTES[sp][0])
+
+# Preview copies: every colourway, in two rows
+row = [("Ladybug", 1, -3.6, -2.6), ("Ladybug", 2, -1.2, -2.6), ("Ant", 1, 1.0, -2.6), ("Spider", 1, 3.4, -2.6)]
+for sp, vi, x, y in row:
+    paint(builders[sp](preview, loc=(x, y, 0), rot=(0, 0, math.radians(15))), sp, PALETTES[sp][vi])
 
 bm = bmesh.new()
 bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=30)
 _object("Floor", from_bmesh("Floor", bm, material("Floor", "#0B0B0F", rough=0.55)), (0, 0, -0.02), preview)
 
-studio(scene, cam_loc=(0.0, -6.2, 6.4), cam_target=(0.1, 0.1, 0.2), lens=40)
-scene.render.resolution_x, scene.render.resolution_y = 1600, 900
+studio(scene, cam_loc=(0.0, -8.6, 9.0), cam_target=(0.0, -1.3, 0.2), lens=40)
+scene.render.resolution_x, scene.render.resolution_y = 1600, 1100
 scene.render.filepath = ROOT + "/blender/renders/bugs.png"
 bpy.ops.render.render(write_still=True)
 bpy.ops.wm.save_as_mainfile(filepath=ROOT + "/blender/bugs.blend")

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, useGLTF } from "@react-three/drei";
+import { BUG_PALETTES, PART_OVERRIDES, roleOf } from "./bug-palettes";
 
 const MODEL = "/models/bugs.glb";
 const DRACO = "/draco/";
@@ -14,11 +15,11 @@ type Species = "Ladybug" | "Ant" | "Spider";
 /** Per-species look + personality. `px` = on-screen body length; speeds in px/s; `gait` = leg cycles per px. */
 const SPECIES: Record<
   Species,
-  { len: number; px: number; speed: number; flee: number; turn: number; gait: number; burst: boolean; colors: string[] }
+  { len: number; px: number; speed: number; flee: number; turn: number; gait: number; burst: boolean }
 > = {
-  Ladybug: { len: 1.6, px: 34, speed: 34, flee: 120, turn: 1.4, gait: 0.16, burst: false, colors: ["#C6FF3D", "#ECE8DD"] },
-  Ant: { len: 1.75, px: 30, speed: 90, flee: 240, turn: 3.4, gait: 0.2, burst: false, colors: ["#C6FF3D", "#9A98A6"] },
-  Spider: { len: 2.0, px: 44, speed: 150, flee: 290, turn: 2.2, gait: 0.12, burst: true, colors: ["#ECE8DD", "#C6FF3D"] },
+  Ladybug: { len: 1.6, px: 34, speed: 34, flee: 120, turn: 1.4, gait: 0.16, burst: false },
+  Ant: { len: 1.75, px: 30, speed: 90, flee: 240, turn: 3.4, gait: 0.2, burst: false },
+  Spider: { len: 2.0, px: 44, speed: 150, flee: 290, turn: 2.2, gait: 0.12, burst: true },
 };
 const MIX_DESKTOP: Species[] = ["Ladybug", "Ant", "Spider", "Ladybug", "Ant", "Ladybug", "Spider"];
 const MIX_MOBILE: Species[] = ["Ladybug", "Ant", "Spider"];
@@ -66,6 +67,7 @@ class Swarm {
   private onFix: (x: number, y: number) => void = () => {};
   private onCount: (n: number) => void = () => {};
   private waveTimer = -1;
+  private wave = 0;
 
   setTemplates(scene: THREE.Object3D) {
     for (const s of Object.keys(SPECIES) as Species[]) {
@@ -91,14 +93,24 @@ class Swarm {
     if (!tpl) return null;
     const model = tpl.clone(true);
     model.position.set(0, 0, 0);
-    const color = SPECIES[species].colors[i % SPECIES[species].colors.length];
+    const palettes = BUG_PALETTES[species];
+    const palette = palettes[i % palettes.length]; // i = how many of this species came before (+ wave offset)
+    const overrides = PART_OVERRIDES[palette.name] ?? {};
+    const mats = new Map<string, THREE.MeshStandardMaterial>(); // one material per colour, per bug
     const legs: Leg[] = [];
     const antennae: THREE.Object3D[] = [];
     let head: THREE.Object3D | undefined;
     model.traverse((o) => {
-      if (o instanceof THREE.Mesh && o.name.endsWith("_Shell")) {
-        const m = (o.material as THREE.MeshStandardMaterial).clone();
-        m.color.set(color);
+      const part = o.name.slice(species.length + 1); // "Ant_Thorax" → "Thorax"
+      const role = roleOf(part);
+      if (o instanceof THREE.Mesh && role) {
+        const color = overrides[part] ?? palette[role];
+        let m = mats.get(color);
+        if (!m) {
+          m = (o.material as THREE.MeshStandardMaterial).clone();
+          m.color.set(color);
+          mats.set(color, m);
+        }
         o.material = m;
       }
       const leg = o.name.match(/_Leg_([LR])(\d)$/);
@@ -141,8 +153,11 @@ class Swarm {
   spawn(mix: Species[], fromEdges: boolean) {
     this.bugs.forEach((b) => this.root.remove(b.outer));
     this.bugs = [];
+    const seen = new Map<Species, number>();
     mix.forEach((s, i) => {
-      const b = this.make(s, i);
+      const n = seen.get(s) ?? 0;
+      seen.set(s, n + 1);
+      const b = this.make(s, n + this.wave); // every wave shifts the colourways
       if (!b) return;
       const hw = this.w / 2 - 40;
       const hh = this.h / 2 - 30;
@@ -185,7 +200,10 @@ class Swarm {
     this.onFix(b.x, b.y);
     const left = this.bugs.filter((x) => x.state !== "squashed" && x.state !== "gone").length;
     this.onCount(left);
-    if (left === 0) this.waveTimer = 3.5; // there are always more bugs
+    if (left === 0) {
+      this.waveTimer = 3.5; // there are always more bugs
+      this.wave++;
+    }
     return true;
   }
 
