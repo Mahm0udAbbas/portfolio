@@ -1,6 +1,6 @@
 /**
  * All editable portfolio content lives here.
- * Replace the placeholders (marked TODO) with real data — components read from this file only.
+ * Components read from this file only — edit content here, never in the components.
  */
 
 export type NavItem = { id: SectionId; label: string };
@@ -44,8 +44,8 @@ export const site = {
   name: "Mahmoud Abbas",
   handle: "mahmoud_abbas",
   role: "Frontend Engineer",
-  tagline: "I build interfaces that feel alive — React, Next.js and a bit of Node on the side.",
-  location: "TODO: City, Country",
+  tagline: "I build fast, bilingual React & Next.js products — dashboards, storefronts and everything in between.",
+  location: "Cairo, Egypt",
   year: "2026", // footer copyright (static so the page prerenders fully)
 
   nav: [
@@ -58,97 +58,120 @@ export const site = {
 
   about: {
     bio: [
-      "TODO: A short paragraph about who you are and what you love building.",
-      "TODO: A second paragraph — how you work, what you care about (performance, accessibility, motion…).",
+      "I'm a frontend engineer in Cairo with 2 years of professional experience shipping production React and Next.js applications — booking platforms, marketplaces, e-commerce storefronts and multi-role dashboards.",
+      "I care about the details people actually feel: fast first loads, solid forms and validation, bilingual RTL/LTR layouts, SEO that holds up, and component systems a team can keep building on. At Nami Tech I own frontend delivery end to end and lead task breakdown across the team.",
+      "Before code, I studied civil engineering — I still like building things that stand up.",
     ],
-    portrait: null as string | null, // e.g. "/me.jpg"
+    portrait: null as string | null, // e.g. "/me.jpg" (drop the file in /public)
     stats: [
-      { value: 0, suffix: "+", label: "Years experience" }, // TODO
-      { value: 0, suffix: "", label: "Projects shipped" }, // TODO
-      { value: 999, suffix: "", label: "Cups of coffee" },
+      { value: 2, suffix: "+", label: "Years experience" },
+      { value: 4, suffix: "", label: "Live products" },
+      { value: 90, suffix: "+", label: "Lighthouse (mobile)" },
     ],
   },
 
   projects: [
     {
-      slug: "project-one",
-      title: "Project One",
-      tagline: "TODO: one-line pitch",
-      description: "TODO: What the project is, the problem it solves, and your part in it.",
-      year: "2026",
-      role: "Frontend",
-      stack: ["Next.js", "TypeScript", "Tailwind"],
-      links: {},
-    },
-    {
-      slug: "project-two",
-      title: "Project Two",
-      tagline: "TODO: one-line pitch",
-      description: "TODO: What the project is, the problem it solves, and your part in it.",
-      year: "2025",
-      role: "Full-stack",
-      stack: ["React", "Node.js", "Express"],
-      links: {},
-    },
-    {
-      slug: "project-three",
-      title: "Project Three",
-      tagline: "TODO: one-line pitch",
-      description: "TODO: What the project is, the problem it solves, and your part in it.",
+      slug: "nuaris",
+      title: "Nuaris",
+      tagline: "Yacht reservation system with live availability and calendar booking.",
+      description:
+        "A live yacht booking platform with availability checks, calendar-driven reservation flows and backend validation. I shipped the booking experience and focused hard on performance — cutting initial page load time by 25% and reaching a 90+ Lighthouse performance score on mobile.",
       year: "2025",
       role: "Frontend",
-      stack: ["Next.js", "GSAP", "Three.js"],
-      links: {},
+      stack: ["Booking flows", "Calendars", "Performance"],
+      links: { live: "https://frontend.nuaris.co" },
     },
     {
-      slug: "project-four",
-      title: "Project Four",
-      tagline: "TODO: one-line pitch",
-      description: "TODO: What the project is, the problem it solves, and your part in it.",
-      year: "2024",
+      slug: "ditchit",
+      title: "Ditchit",
+      tagline: "Local marketplace for buying and selling.",
+      description:
+        "Marketplace UI flows for browsing categories, viewing listings and posting items on a local buying-and-selling platform. Built responsive listing pages and reusable components with the Next.js App Router, TypeScript, shadcn/ui, Tailwind, Zod and Zustand, using SSR/SSG patterns.",
+      year: "2025",
       role: "Frontend",
-      stack: ["React", "Redux", "REST"],
-      links: {},
+      stack: ["Next.js", "TypeScript", "shadcn/ui", "Tailwind", "Zustand", "Zod"],
+      links: { live: "https://ditchit.com" },
+    },
+    {
+      slug: "monsbah",
+      title: "Monsbah",
+      tagline: "Fashion e-commerce — consumer storefront and merchant dashboard.",
+      description:
+        "Migrated the public storefront from React CSR to the Next.js 15 App Router for proper SSR and SEO readiness. Built merchant dashboard and consumer storefront flows across 5 product categories with React Hook Form and Zod, plus the SEO foundations: dynamic metadata, localized XML sitemaps, canonical tags, hreflang and a custom robots.txt.",
+      year: "2025",
+      role: "Frontend",
+      stack: ["Next.js 15", "React Hook Form", "Zod", "SEO", "i18n"],
+      links: { live: "https://monsbah.com" },
+    },
+    {
+      slug: "tasamii",
+      title: "Tasamii",
+      tagline: "Goal-coaching platform across 300+ specialization fields.",
+      description:
+        "Goal-setting, task management, opportunity and coaching features across 300+ specialization fields. Engineered a 5-role dashboard with permission-based views, CRUD workflows, TanStack Table and form validation, and implemented private/group chat, wallet and Maysir payment flows, and Arabic/English localization with RTL/LTR switching.",
+      year: "2025",
+      role: "Frontend",
+      stack: ["React", "TanStack Table", "RTL/LTR", "Chat", "Payments"],
+      links: { live: "https://tasamii.com" },
     },
   ] satisfies Project[] as Project[],
 
   skills: [
-    { label: "Frontend", items: ["React", "Next.js", "TypeScript", "JavaScript", "HTML", "CSS", "Tailwind"] },
-    { label: "Motion & 3D", items: ["GSAP", "Three.js", "R3F", "Framer Motion"] },
-    { label: "Backend", items: ["Node.js", "Express", "REST", "MongoDB"] },
-    { label: "Tooling", items: ["Git", "Vite", "Figma", "Vercel"] },
+    { label: "Languages", items: ["HTML5", "CSS3", "JavaScript", "TypeScript"] },
+    { label: "Frameworks", items: ["React", "Next.js", "React Router"] },
+    { label: "State & Data", items: ["Redux Toolkit", "Redux Thunk", "TanStack Query", "TanStack Table", "Zustand"] },
+    { label: "Forms", items: ["React Hook Form", "Zod", "Yup"] },
+    {
+      label: "Styling",
+      items: ["Tailwind CSS", "SASS/SCSS", "shadcn/ui", "Styled Components", "CSS Modules", "Bootstrap"],
+    },
+    { label: "Tools & Backend", items: ["Git", "GitHub", "Axios", "REST APIs", "i18next", "Firebase", "Supabase", "Node.js", "Express"] },
   ] satisfies SkillGroup[],
 
   experience: [
     {
       hash: "a3f9c1e",
-      role: "Frontend Engineer",
-      company: "TODO: Company",
-      period: "2024 — now",
-      points: ["TODO: Impact you had", "TODO: Something you built or led"],
+      role: "Software Engineer — React Developer",
+      company: "Nami Tech",
+      period: "Jan 2025 — now",
+      location: "Cairo, Egypt",
+      points: [
+        "Own end-to-end frontend delivery for client projects, turning requirements into reusable React and Next.js interfaces and production-ready user flows.",
+        "Lead task breakdown and delegate work across the team, coordinating priorities with designers and backend developers to keep delivery on schedule.",
+        "Build responsive, bilingual RTL/LTR interfaces and reusable UI components for dashboards, forms, listings and content-heavy screens.",
+        "Review implementation quality and keep API integration, validation and performance work at production standard.",
+      ],
     },
     {
-      hash: "7b2d04f",
-      role: "Junior Frontend Developer",
-      company: "TODO: Company",
-      period: "2022 — 2024",
-      points: ["TODO: Impact you had", "TODO: Something you built or led"],
+      hash: "5e1b7d2",
+      role: "Frontend & Mobile Cross-Platform Program",
+      company: "Information Technology Institute (ITI)",
+      period: "Nov 2023 — Apr 2024",
+      points: ["Intensive training program — Frontend & Mobile Cross-Platform track."],
+    },
+    {
+      hash: "0c4e9a1",
+      role: "B.Sc. Civil Engineering",
+      company: "Menoufia University",
+      period: "2016 — 2021",
+      points: ["Faculty of Engineering — graduated with a grade of Very Good."],
     },
   ] satisfies Experience[] as Experience[],
 
   contact: {
-    email: "you@example.com", // TODO
-    phone: "+00 000 000 0000", // TODO
-    github: { handle: "your-github", url: "https://github.com/your-github" }, // TODO
-    linkedin: { handle: "your-linkedin", url: "https://www.linkedin.com/in/your-linkedin" }, // TODO
-    cv: "/cv.pdf", // TODO: drop your CV at public/cv.pdf
+    email: "mahmoudabbas393@gmail.com",
+    phone: "+20 128 193 5436",
+    github: { handle: "Mahm0udAbbas", url: "https://github.com/Mahm0udAbbas" },
+    linkedin: { handle: "mahmoud-abbas-45b36a259", url: "https://www.linkedin.com/in/mahmoud-abbas-45b36a259" },
+    cv: "/cv.pdf",
   } satisfies Contact,
 
-  /** Lines typed by the terminal preloader (milestone 2). */
+  /** Lines typed by the terminal preloader. */
   preloader: [
-    { cmd: "whoami", out: "mahmoud_abbas — frontend engineer" },
-    { cmd: "load --stack react next node express", out: "stack loaded ✓" },
-    { cmd: "fetch projects", out: "4 projects found ✓" },
+    { cmd: "whoami", out: "mahmoud_abbas — frontend engineer · cairo, eg" },
+    { cmd: "load --stack react next typescript", out: "stack loaded ✓" },
+    { cmd: "fetch projects", out: "4 live projects found ✓" },
     { cmd: "render portfolio", out: "" },
   ] satisfies PreloaderLine[],
 };
