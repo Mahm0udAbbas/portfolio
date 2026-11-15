@@ -46,9 +46,21 @@ type Toy = {
   parts: Record<string, Part>;
 };
 
+type Rest = { pos: THREE.Vector3; rot: THREE.Euler; scale: THREE.Vector3 };
+
+/**
+ * The model's authored transform, captured the first time we see an object and reused afterwards.
+ * Effects can run more than once (React Strict Mode in dev, HMR) after frames have already moved things —
+ * reading live transforms then would bake the animated/hidden state in as the "rest" pose.
+ */
+const rest = (o: THREE.Object3D): Rest =>
+  (o.userData.rest ??= { pos: o.position.clone(), rot: o.rotation.clone(), scale: o.scale.clone() }) as Rest;
+
 const part = (root: THREE.Object3D, name: string): Part | null => {
   const obj = root.getObjectByName(name);
-  return obj ? { obj, base: obj.position.clone(), baseScale: obj.scale.clone() } : null;
+  if (!obj) return null;
+  const r = rest(obj);
+  return { obj, base: r.pos.clone(), baseScale: r.scale.clone() };
 };
 
 type Frame = {
@@ -138,8 +150,10 @@ function Toys({ progress, pointer, entered, reduced, onReady }: ToysInput) {
   const byRoot = useRef(new Map<THREE.Object3D, Toy>());
 
   useLayoutEffect(() => {
+    scene.traverse((o) => void rest(o)); // before anything below moves or hides an object
     const list: Toy[] = [];
     scene.children.forEach((root, i) => {
+      const r = rest(root);
       const kind = String(root.userData.toy ?? "dot");
       const parts: Record<string, Part> = {};
       for (const n of ["ToggleKnob", "SliderThumb", "SliderFill", "ButtonCap", "BraceL", "BraceR", "LogoCursor", "CheckMark"]) {
@@ -147,9 +161,12 @@ function Toys({ progress, pointer, entered, reduced, onReady }: ToysInput) {
         if (p) parts[n] = p;
       }
       // Own material for the toggle track so turning it "off" doesn't recolour every lime part.
-      if (kind === "toggle" && root instanceof THREE.Mesh) root.material = (root.material as THREE.Material).clone();
+      if (kind === "toggle" && root instanceof THREE.Mesh && !root.userData.ownMaterial) {
+        root.material = (root.material as THREE.Material).clone();
+        root.userData.ownMaterial = true;
+      }
 
-      const flat = new THREE.Vector3(root.position.x, root.position.y, 0);
+      const flat = new THREE.Vector3(r.pos.x, r.pos.y, 0);
       const dir =
         kind === "cursor"
           ? new THREE.Vector3(-1.4, -1.1, 1.2) // the cursor dives toward the next section
@@ -160,9 +177,9 @@ function Toys({ progress, pointer, entered, reduced, onReady }: ToysInput) {
       list.push({
         root,
         kind,
-        basePos: root.position.clone(),
-        baseRot: root.rotation.clone(),
-        baseScale: root.scale.x,
+        basePos: r.pos.clone(),
+        baseRot: r.rot.clone(),
+        baseScale: r.scale.x,
         dir,
         phase: i * 1.73,
         delay: kind === "logo" ? 0 : 0.08 + i * 0.06,
