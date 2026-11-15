@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -23,11 +25,14 @@ export function HeroCanvas() {
   const resolveReady = useRef<(() => void) | null>(null);
   const [active, setActive] = useState(true);
   const reduced = useReducedMotion();
+  // Phones get a pre-rendered image instead of WebGL (three.js costs seconds of CPU on mobile).
+  const phone = useMediaQuery("(max-width: 767px)");
+  const webgl = phone === false;
 
   // Hold the preloader until the model is in (asset-gate also has its own timeout).
   useEffect(() => {
-    trackAsset(new Promise<void>((r) => (resolveReady.current = r)));
-  }, []);
+    if (webgl) trackAsset(new Promise<void>((r) => (resolveReady.current = r)));
+  }, [webgl]);
   const onReady = useCallback(() => resolveReady.current?.(), []);
 
   // Toys pop in when the preloader hands over.
@@ -79,14 +84,21 @@ export function HeroCanvas() {
 
   return (
     <div ref={wrap} aria-hidden="true" className="absolute inset-0">
-      <ToysCanvas
-        active={active}
-        progress={progress}
-        pointer={pointer}
-        entered={entered}
-        reduced={reduced}
-        onReady={onReady}
-      />
+      {webgl && (
+        <ToysCanvas
+          active={active}
+          progress={progress}
+          pointer={pointer}
+          entered={entered}
+          reduced={reduced}
+          onReady={onReady}
+        />
+      )}
+      {phone && (
+        <div className="toys-float absolute inset-x-0 bottom-[7vh] mx-auto w-[min(94vw,520px)]">
+          <Image src="/hero/toys.png" alt="" width={1200} height={825} sizes="94vw" priority={false} />
+        </div>
+      )}
     </div>
   );
 }

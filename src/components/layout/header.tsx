@@ -106,11 +106,13 @@ export function Header() {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event(OPEN_TERMINAL))}
-            aria-label="Open command terminal"
             className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 font-mono text-xs text-muted transition-colors hover:border-accent hover:text-accent-strong"
           >
-            <span className="text-accent-strong">&gt;_</span>
+            <span className="text-accent-strong" aria-hidden="true">
+              &gt;_
+            </span>
             <kbd className="hidden font-mono sm:inline">Ctrl K</kbd>
+            <span className="sr-only">Open command terminal</span>
           </button>
           <a href={`${base}#hero`} data-logo-target aria-label={`${site.name} — back to top`} className="text-fg">
             <Logo className="size-10" />

@@ -92,6 +92,16 @@ html[data-preloading] [data-logo-target] svg {
   animation: blink 1s steps(1) infinite;
 }
 
+/* Phone hero: the pre-rendered toys bob gently */
+@keyframes toys-float {
+  50% {
+    transform: translateY(-10px) rotate(-1deg);
+  }
+}
+.toys-float {
+  animation: toys-float 6s ease-in-out infinite;
+}
+
 /* Footer bugs: "// bug fixed ✓" floats up from a squashed bug */
 @keyframes bug-toast {
   0% {
@@ -113,6 +123,9 @@ html[data-preloading] [data-logo-target] svg {
 
 @media (prefers-reduced-motion: reduce) {
   .cursor-blink {
+    animation: none;
+  }
+  .toys-float {
     animation: none;
   }
   .bug-toast {

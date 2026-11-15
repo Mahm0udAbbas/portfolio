@@ -188,6 +188,10 @@ export function Preloader() {
         </div>
 
         <div className="min-h-44 space-y-2 px-5 py-4">
+          <p className="mb-3 font-sans text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
+            {site.name}
+            <span className="text-accent-strong">.</span>
+          </p>
           {site.preloader.map((line, i) => (
             <div key={i} data-line className="invisible">
               <span className="text-accent-strong">❯</span> <span data-cmd />

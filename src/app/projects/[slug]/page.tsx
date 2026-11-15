@@ -13,7 +13,14 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps<"/projects/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const found = getProject(slug);
-  return found ? { title: `${found.project.title} — ${site.name}`, description: found.project.tagline } : {};
+  if (!found) return {};
+  const { project } = found;
+  return {
+    title: project.title, // → "Nuaris — Mahmoud Abbas" via the root title template
+    description: `${project.tagline} ${project.description}`.slice(0, 200),
+    alternates: { canonical: `/projects/${project.slug}` },
+    openGraph: { title: `${project.title} — ${site.name}`, description: project.tagline, url: `/projects/${project.slug}` },
+  };
 }
 
 /** Direct visit / refresh of a project URL: a full page instead of the overlay. */
@@ -24,7 +31,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
   return (
     <>
       <Header />
-      <main className="pt-(--header-h)">
+      <main id="main" className="pt-(--header-h)">
         <div className="mx-auto max-w-5xl px-4 pt-10 sm:px-8">
           <Link href="/#projects" className="font-mono text-sm text-muted hover:text-accent-strong">
             ← cd ../projects
