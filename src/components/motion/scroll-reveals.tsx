@@ -25,7 +25,8 @@ export function ScrollReveals() {
           duration: 0.9,
           ease: "power3.out",
           stagger: 0.08,
-          scrollTrigger: { trigger: el, start: "top 85%", once: true },
+          // play on the way down, rewind when scrolled back above the trigger
+          scrollTrigger: { trigger: el, start: "top 85%", toggleActions: "play none none reverse" },
         });
       });
 
@@ -37,7 +38,7 @@ export function ScrollReveals() {
           v: end,
           duration: 1.6,
           ease: "power2.out",
-          scrollTrigger: { trigger: el, start: "top 90%", once: true },
+          scrollTrigger: { trigger: el, start: "top 90%", toggleActions: "play none none reverse" },
           onUpdate: () => {
             el.textContent = String(Math.round(o.v));
           },

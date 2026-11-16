@@ -726,6 +726,8 @@ export class SkiRunSim {
       this.emit(30, 3.2);
       this.lensBurst(22); // landing throws powder at the lens
     }
+    // rewinding: the skis still brush the snow (lighter), but nothing gets thrown at the lens
+    if (seg.kind === "descent" && dp < 0 && !tucked) this.emit(1, 0.5);
     this.lastSeg = index;
     this.lastU = u;
     this.stepSpray(dt);

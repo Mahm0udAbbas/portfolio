@@ -37,6 +37,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
   const splats = useRef<SnowSplatsHandle>(null);
   const onSplat = useCallback((x: number, y: number, size: number) => splats.current?.splat(x, y, size), []);
   const progress = useRef(0);
+  const dir = useRef<1 | -1>(1); // which way the visitor is scrolling (cards fade the other way going back)
   const [near, setNear] = useState(false);
   const [active, setActive] = useState(false);
   const [card, setCard] = useState<Card>({ kind: "intro" }); // where the scroll is
@@ -74,7 +75,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
         end: "bottom bottom",
         onUpdate: (self) => {
           progress.current = self.progress;
-          if (self.direction) lastDir = self.direction as 1 | -1;
+          if (self.direction) lastDir = dir.current = self.direction as 1 | -1;
           // A real skier doesn't freeze mid-slope: when scrolling stops during a descent or a lift
           // ride, glide on to the next summit at a natural speed (any new scroll takes over).
           clearTimeout(idle);
@@ -92,15 +93,20 @@ function SkiRun({ entries }: { entries: Experience[] }) {
                   gliding = false;
                 },
               });
+              // Any input takes over right where the skier is. Without this, Lenis keeps the glide's
+              // destination as its target and adds the wheel delta to it, so scrolling UP mid-glide
+              // would still carry the run forward. Runs in the capture phase, before Lenis sees the event.
               const stop = () => {
+                window.removeEventListener("wheel", stop, true);
+                window.removeEventListener("touchstart", stop, true);
+                window.removeEventListener("keydown", stop, true);
+                if (!gliding) return;
                 gliding = false;
-                window.removeEventListener("wheel", stop);
-                window.removeEventListener("touchstart", stop);
-                window.removeEventListener("keydown", stop);
+                lenis.scrollTo(lenis.animatedScroll, { immediate: true, force: true });
               };
-              window.addEventListener("wheel", stop, { passive: true, once: true });
-              window.addEventListener("touchstart", stop, { passive: true, once: true });
-              window.addEventListener("keydown", stop, { once: true });
+              window.addEventListener("wheel", stop, { passive: true, capture: true });
+              window.addEventListener("touchstart", stop, { passive: true, capture: true });
+              window.addEventListener("keydown", stop, { capture: true });
             }, 450);
           }
           const c = cardAt(self.progress);
@@ -117,11 +123,12 @@ function SkiRun({ entries }: { entries: Experience[] }) {
   );
 
   // Cross-fade: the current panel fades + blurs out, then the next one fades + sharpens in.
+  // Scrolling back plays it in reverse: the old card drops away and the previous one comes down from above.
   useEffect(() => {
     if (keyOf(card) === keyOf(shown) || !panel.current) return;
     const tween = gsap.to(panel.current, {
       autoAlpha: 0,
-      y: -14,
+      y: -14 * dir.current,
       filter: "blur(8px)",
       duration: 0.35,
       ease: "power2.in",
@@ -136,7 +143,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
     if (!panel.current) return;
     gsap.fromTo(
       panel.current,
-      { autoAlpha: 0, y: 22, filter: "blur(10px)" },
+      { autoAlpha: 0, y: 22 * dir.current, filter: "blur(10px)" },
       { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.9, ease: "power3.out", overwrite: true },
     );
   }, [shown]);
