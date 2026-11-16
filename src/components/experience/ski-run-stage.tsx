@@ -28,8 +28,10 @@ export function SkiRunStage({ entries, fallback }: { entries: Experience[]; fall
   return <SkiRun entries={entries} />;
 }
 
-const keyOf = (c: Card) => (c.kind === "entry" ? `e${c.index}` : c.kind === "travel" ? `t${c.via}${c.index}` : c.kind);
+const keyOf = (c: Card) =>
+  c.kind === "entry" ? `e${c.index}` : c.kind === "travel" ? `t${c.via}${c.index}${c.back ? "b" : ""}` : c.kind;
 const TRAVEL = { descent: "skiing down from", lift: "chairlift up to", summit: "at the summit of" } as const;
+const TRAVEL_BACK = { descent: "climbing back to", lift: "chairlift down to", summit: "at the summit of" } as const;
 
 function SkiRun({ entries }: { entries: Experience[] }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -109,7 +111,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
               window.addEventListener("keydown", stop, { capture: true });
             }, 450);
           }
-          const c = cardAt(self.progress);
+          const c = cardAt(self.progress, lastDir);
           const k = keyOf(c);
           if (k !== last) {
             last = k;
@@ -184,7 +186,7 @@ function SkiRun({ entries }: { entries: Experience[] }) {
           >
             {shown.kind === "travel" && (
               <>
-                <span className="text-accent-strong">&#x276F;</span> {TRAVEL[shown.via]}{" "}
+                <span className="text-accent-strong">&#x276F;</span> {(shown.back ? TRAVEL_BACK : TRAVEL)[shown.via]}{" "}
                 <span className="text-fg">{entries[Math.min(shown.index, count - 1)]?.company}</span>
               </>
             )}

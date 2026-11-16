@@ -79,14 +79,17 @@ export function glideFrom(p: number, dir: 1 | -1): { to: number; seconds: number
 export type Card =
   | { kind: "intro" }
   | { kind: "entry"; index: number }
-  | { kind: "travel"; via: "descent" | "lift" | "summit"; index: number }
+  | { kind: "travel"; via: "descent" | "lift" | "summit"; index: number; back?: boolean }
   | { kind: "end" };
 
-export function cardAt(p: number): Card {
+export function cardAt(p: number, dir: 1 | -1 = 1): Card {
   const { seg, t } = segmentAt(p);
   if (seg.kind === "intro") return { kind: "intro" };
   if (seg.kind === "end") return { kind: "end" };
   if (seg.kind === "summit" && t > 0.1 && t < 0.92) return { kind: "entry", index: seg.i };
+  // travelling back: the chip names where you're heading (the previous summit)
+  if (dir < 0 && seg.kind === "lift") return { kind: "travel", via: "lift", index: seg.i, back: true };
+  if (dir < 0 && seg.kind === "descent") return { kind: "travel", via: "descent", index: seg.i, back: true };
   // between summits: just a small chip saying where we are on the run
   if (seg.kind === "lift") return { kind: "travel", via: "lift", index: seg.i + 1 };
   if (seg.kind === "descent") return { kind: "travel", via: "descent", index: seg.i };

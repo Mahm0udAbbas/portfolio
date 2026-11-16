@@ -107,6 +107,22 @@ const SKATE = (phase: number): Pose => {
   };
 };
 
+/** Going back up a piste: herringbone / skating climb — skis in a V, alternate legs step, poles push. */
+const CLIMB = (phase: number): Pose => {
+  const s = Math.sin(phase);
+  const l = Math.max(s, 0);
+  const r = Math.max(-s, 0);
+  return {
+    Spine: [-0.38, 0, 0], Neck: [0.32, 0, 0],
+    HipL: [0.45 + 0.5 * l, 0.3, 0], HipR: [0.45 + 0.5 * r, -0.3, 0],
+    KneeL: [-0.6 - 0.65 * l, 0, 0], KneeR: [-0.6 - 0.65 * r, 0, 0],
+    AnkleL: [0.25 + 0.15 * l, 0, 0], AnkleR: [0.25 + 0.15 * r, 0, 0],
+    ShoulderL: [0.45 + 0.6 * r, deg(-14), 0], ShoulderR: [0.45 + 0.6 * l, deg(14), 0],
+    ElbowL: [0.7, 0, 0], ElbowR: [0.7, 0, 0],
+    PoleL: [-1.3 + 0.55 * r, 0, 0], PoleR: [-1.3 + 0.55 * l, 0, 0],
+  };
+};
+
 const SNOW_COUNT = 1400;
 const LENS_COUNT = 40;
 const LENS_RANGE = 22; // only throw powder at the lens when the camera is this close (m)
@@ -134,6 +150,10 @@ export class SkiRunSim {
   private arrival: THREE.Vector3[] = [];
 
   private lastP = 0;
+  /** Travelling back (scrolled up): the skier turns round and goes that way. Hysteresis via revAcc. */
+  private rev = false;
+  private revAcc = 0;
+  private climbPhase = 0;
   private smoothP = 0;
   private yaw = 0;
   private roll = 0;
@@ -516,6 +536,13 @@ export class SkiRunSim {
     const dp = p - this.lastP;
     this.lastP = p;
     const { index, seg, t: u } = segmentAt(p);
+    // which way are we really travelling? (needs a little sustained movement to turn round, so jitter can't flip it)
+    if (snap) this.revAcc = 0;
+    this.revAcc = Math.min(Math.max(this.revAcc + dp, -0.002), 0.002);
+    if (this.revAcc <= -0.0015) this.rev = true;
+    else if (this.revAcc >= 0.0015) this.rev = false;
+    const rev = this.rev;
+    const BACK = Math.PI;
 
     let pose: Pose = STAND(0);
     let seated = false;
@@ -537,16 +564,18 @@ export class SkiRunSim {
       const to = i < DESC.length ? DESC[i][0] : S;
       if (seg.kind === "summit" && u < SUMMIT_ARRIVE && i > 0) {
         pos.copy(from).lerp(S, smooth(u / SUMMIT_ARRIVE));
-        travelYaw = yawTo(from, S);
+        travelYaw = rev ? yawTo(S, from) : yawTo(from, S); // backing off the summit toward the lift
         pose = skate();
       } else if (seg.kind === "summit" && u > SUMMIT_LEAVE && i < DESC.length) {
         pos.copy(S).lerp(to, smooth((u - SUMMIT_LEAVE) / (1 - SUMMIT_LEAVE)));
-        travelYaw = yawTo(S, to);
+        travelYaw = rev ? yawTo(to, S) : yawTo(S, to); // climbing back onto the summit
         pose = skate();
       } else {
         pos.copy(S);
         // at the top: face down the next run (on the last summit, back over the range you came from)
-        travelYaw = i < DESC.length ? yawTo(S, to) : yawTo(S, SUMMITS[1]);
+        // going back: turn toward the lift you came up (you'll ride it down)
+        travelYaw =
+          rev && seg.kind === "summit" && i > 0 ? yawTo(S, from) : i < DESC.length ? yawTo(S, to) : yawTo(S, SUMMITS[1]);
         pose = STAND(Math.sin(t * 0.6) * 0.5);
       }
     } else if (seg.kind === "descent") {
@@ -556,38 +585,49 @@ export class SkiRunSim {
       along(pts, u - 0.006, _a);
       along(pts, u + 0.006, _b);
       pitch = Math.atan2(_b.y - _a.y, Math.hypot(_b.x - _a.x, _b.z - _a.z));
-      // curvature (+ = turning left) → lean INTO the turn; each new turn → pole plant on the new inside hand
-      const curv = angleDiff(yawAlong(pts, u + 0.02), yawAlong(pts, u - 0.02));
-      const turn = Math.max(-1, Math.min(1, curv * 2.4));
-      carveRoll = turn * 0.72;
-      const sign = Math.abs(turn) > 0.18 ? Math.sign(turn) : 0;
-      if (sign !== 0 && sign !== this.lastTurnSign && dp !== 0) {
-        if (sign > 0) this.reachL = 1;
-        else this.reachR = 1;
-        this.lastTurnSign = sign;
-      }
-      this.reachL *= Math.exp(-2.8 * dt);
-      this.reachR *= Math.exp(-2.8 * dt);
-      // sink through the turn, rise (unweight) through the transition
-      pose = carvePose(turn, this.roll, 0.02 + 0.38 * Math.abs(turn), this.reachL, this.reachR);
-      // ride up the kicker's 1.3 m ramp just before the lip
-      const RAMP = 0.024;
-      if (seg.i === 0 && u > JUMP_A - RAMP && u <= JUMP_A) {
-        ramp = 1.3 * ((u - (JUMP_A - RAMP)) / RAMP);
-        pitch = 0.35;
-      }
-      if (seg.i === 0 && u > JUMP_A - 0.03 && u < JUMP_B + 0.02) {
-        // the career-switch jump: crouch on the kicker, arc through the air in a tuck, absorb the landing
-        const ja = (u - JUMP_A) / (JUMP_B - JUMP_A);
-        if (ja > 0 && ja < 1) {
-          const ya = along(pts, JUMP_A, _a).y + 1.3;
-          const yb = along(pts, JUMP_B, _b).y;
-          pos.y = Math.max(pos.y, ya + (yb - ya) * ja + 6 * ja * (1 - ja));
-          pose = TUCK;
-          tucked = true;
-          carveRoll = 0;
-          pitch = -0.15 + 0.3 * ja;
-        } else pose = carvePose(0, 0, 0.55, 0, 0);
+      if (rev) {
+        // heading back up the piste: face uphill and herringbone/skate up it (no carving, no jump)
+        travelYaw += BACK;
+        pitch = -pitch;
+        pose = CLIMB((this.climbPhase += Math.abs(dp) * 1500));
+        if (seg.i === 0 && u > JUMP_A - 0.024 && u <= JUMP_A) {
+          ramp = 1.3 * ((u - (JUMP_A - 0.024)) / 0.024); // walk back up over the kicker
+          pitch = -0.35;
+        }
+      } else {
+        // curvature (+ = turning left) → lean INTO the turn; each new turn → pole plant on the new inside hand
+        const curv = angleDiff(yawAlong(pts, u + 0.02), yawAlong(pts, u - 0.02));
+        const turn = Math.max(-1, Math.min(1, curv * 2.4));
+        carveRoll = turn * 0.72;
+        const sign = Math.abs(turn) > 0.18 ? Math.sign(turn) : 0;
+        if (sign !== 0 && sign !== this.lastTurnSign && dp !== 0) {
+          if (sign > 0) this.reachL = 1;
+          else this.reachR = 1;
+          this.lastTurnSign = sign;
+        }
+        this.reachL *= Math.exp(-2.8 * dt);
+        this.reachR *= Math.exp(-2.8 * dt);
+        // sink through the turn, rise (unweight) through the transition
+        pose = carvePose(turn, this.roll, 0.02 + 0.38 * Math.abs(turn), this.reachL, this.reachR);
+        // ride up the kicker's 1.3 m ramp just before the lip
+        const RAMP = 0.024;
+        if (seg.i === 0 && u > JUMP_A - RAMP && u <= JUMP_A) {
+          ramp = 1.3 * ((u - (JUMP_A - RAMP)) / RAMP);
+          pitch = 0.35;
+        }
+        if (seg.i === 0 && u > JUMP_A - 0.03 && u < JUMP_B + 0.02) {
+          // the career-switch jump: crouch on the kicker, arc through the air in a tuck, absorb the landing
+          const ja = (u - JUMP_A) / (JUMP_B - JUMP_A);
+          if (ja > 0 && ja < 1) {
+            const ya = along(pts, JUMP_A, _a).y + 1.3;
+            const yb = along(pts, JUMP_B, _b).y;
+            pos.y = Math.max(pos.y, ya + (yb - ya) * ja + 6 * ja * (1 - ja));
+            pose = TUCK;
+            tucked = true;
+            carveRoll = 0;
+            pitch = -0.15 + 0.3 * ja;
+          } else pose = carvePose(0, 0, 0.55, 0, 0);
+        }
       }
     } else if (seg.kind === "lift") {
       const line = LIFTS[seg.i];
@@ -598,6 +638,7 @@ export class SkiRunSim {
       chairPos = along(line, k, new THREE.Vector3());
       chairYaw = yawAlong(line, Math.min(Math.max(k, 0.02), 0.98));
       const seat = chairPos.clone().add(new THREE.Vector3(0, -2.26 + 0.1 - this.pelvisRestY, 0));
+      if (rev) chairYaw += BACK; // the chair comes back down the line facing the valley
       travelYaw = chairYaw;
       if (u < board) {
         pos.copy(base).lerp(seat, smooth(u / board));
@@ -727,7 +768,7 @@ export class SkiRunSim {
       this.lensBurst(22); // landing throws powder at the lens
     }
     // rewinding: the skis still brush the snow (lighter), but nothing gets thrown at the lens
-    if (seg.kind === "descent" && dp < 0 && !tucked) this.emit(1, 0.5);
+    if (seg.kind === "descent" && dp < 0 && Math.random() < 0.3) this.emit(1, 0.4); // climbing kicks a little snow
     this.lastSeg = index;
     this.lastU = u;
     this.stepSpray(dt);
