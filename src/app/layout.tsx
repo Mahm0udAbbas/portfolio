@@ -3,6 +3,7 @@ import { Geist, JetBrains_Mono } from "next/font/google";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import { Preloader } from "@/components/preloader/preloader";
 import { CommandTerminal } from "@/components/terminal/command-terminal";
+import { SiteCursor } from "@/components/cursor/site-cursor";
 import { site } from "@/content/site";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
@@ -68,6 +69,7 @@ export default function RootLayout({ children, modal }: LayoutProps<"/">) {
           {children}
           {modal}
           <CommandTerminal />
+          <SiteCursor />
         </SmoothScroll>
       </body>
     </html>

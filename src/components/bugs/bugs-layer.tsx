@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import type { BugsApi } from "./bugs-canvas";
+import { CURSOR_CATCH } from "@/components/cursor/site-cursor";
 
 const BugsCanvas = dynamic(() => import("./bugs-canvas"), { ssr: false });
 
@@ -27,6 +28,8 @@ export function BugsLayer() {
   useEffect(() => {
     const zone = wrap.current?.parentElement;
     if (!zone) return;
+    // The site cursor turns into a bug-catching reticle inside this zone.
+    zone.dataset.cursor = "hunt";
     const nearIo = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { rootMargin: "600px 0px" });
     const viewIo = new IntersectionObserver(([e]) => setActive(e.isIntersecting));
     nearIo.observe(zone);
@@ -39,16 +42,22 @@ export function BugsLayer() {
     const move = (e: PointerEvent) => {
       const p = local(e);
       api.current?.point(p);
-      zone.style.cursor = api.current?.over(p.x, p.y) ? "crosshair" : "";
+      const over = !!api.current?.over(p.x, p.y);
+      zone.dataset.cursor = over ? "lock" : "hunt";
+      // Without the site cursor (touch, reduced motion) fall back to a native crosshair.
+      zone.style.cursor = over && !document.documentElement.hasAttribute("data-site-cursor") ? "crosshair" : "";
     };
     const leave = () => {
       api.current?.point(null);
+      zone.dataset.cursor = "hunt";
       zone.style.cursor = "";
     };
     // Capture phase: a hit squashes the bug and swallows the click before any link sees it.
     const click = (e: MouseEvent) => {
       const p = local(e);
       if (api.current?.hit(p.x, p.y)) {
+        window.dispatchEvent(new Event(CURSOR_CATCH));
+        zone.dataset.cursor = "hunt";
         e.preventDefault();
         e.stopPropagation();
       }
@@ -57,6 +66,7 @@ export function BugsLayer() {
     zone.addEventListener("pointerleave", leave);
     zone.addEventListener("click", click, true);
     return () => {
+      delete zone.dataset.cursor;
       nearIo.disconnect();
       viewIo.disconnect();
       zone.removeEventListener("pointermove", move);

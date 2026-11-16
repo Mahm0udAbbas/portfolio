@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { Project } from "@/content/site";
 import { PROJECT_TINTS } from "@/lib/project-tints";
+import { ProjectShowcase } from "./project-showcase";
 
 /**
  * Project preview inside a mock browser frame.
@@ -12,14 +13,23 @@ export function ProjectMedia({
   index,
   sizes = "(min-width: 768px) 45vw, 100vw",
   className = "",
+  mode = "hover",
+  priority = false,
 }: {
   project: Project;
   index: number;
   sizes?: string;
   className?: string;
+  /** Live-site captures: scroll on card hover, or pan on their own in the case study. */
+  mode?: "hover" | "auto";
+  priority?: boolean;
 }) {
   const tint = PROJECT_TINTS[index % PROJECT_TINTS.length];
   const m = project.media;
+
+  // Real captures of the live site take over from the placeholder frame.
+  if (project.screens && !m)
+    return <ProjectShowcase screens={project.screens} url={project.links.live} mode={mode} priority={priority} className={className} />;
 
   return (
     <div className={`flex flex-col overflow-hidden rounded-xl border border-line bg-bg ${className}`}>
