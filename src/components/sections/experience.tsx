@@ -1,8 +1,8 @@
 import { site } from "@/content/site";
-import { SkiRunStage } from "@/components/experience/ski-run-stage";
+import { CityWalkStage } from "@/components/experience/city-walk-stage";
 
 /**
- * Experience. Desktop: a scroll-driven 3D ski run with one checkpoint per entry (oldest → newest).
+ * Experience. Desktop: a scroll-driven city walk with a stop per entry (oldest → newest).
  * Phones / reduced motion (and the server-rendered HTML): the `git log` timeline below.
  */
 export function Experience() {
@@ -57,7 +57,7 @@ export function Experience() {
 
   return (
     <section id="experience" className="relative">
-      <SkiRunStage entries={chronological} fallback={timeline} />
+      <CityWalkStage entries={chronological} fallback={timeline} />
     </section>
   );
 }

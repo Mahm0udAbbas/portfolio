@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SkierRig } from "./skier-rig";
 import ROUTE from "./ski-route.json";
 import { SUMMIT_ARRIVE, SUMMIT_LEAVE, SEGMENTS, segmentAt, zoomAt } from "./ski-timeline";
 
@@ -136,6 +137,7 @@ export class SkiRunSim {
   root = new THREE.Group();
   private skier?: THREE.Object3D;
   private joints = new Map<string, THREE.Object3D>();
+  private rig?: SkierRig;
   private pelvisRestY = 1.08;
   private chair?: THREE.Object3D;
   private camera?: THREE.Camera;
@@ -190,7 +192,7 @@ export class SkiRunSim {
   private firedArrive = -1;
 
   // ── setup ────────────────────────────────────────────────────────────────
-  attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean) {
+  attach(scene: THREE.Object3D, camera: THREE.Camera, tex: { snow: THREE.Texture; rock: THREE.Texture }, reduced: boolean, model: THREE.Object3D) {
     this.dispose();
     this.root.clear();
     this.camera = camera;
@@ -208,16 +210,29 @@ export class SkiRunSim {
       });
     }
 
-    this.skier = scene.getObjectByName("Skier") ?? undefined;
+    const placeholder = scene.getObjectByName("Skier");
+    if (placeholder) placeholder.visible = false;
+    this.skier = new THREE.Group();
+    this.skier.add(model);
+    this.root.add(this.skier);
+    // Restore bind transforms before re-attaching after Strict Mode or reduced-motion changes.
+    model.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.pose();
+    });
+    this.rig = new SkierRig(model);
+    this.joints.clear();
     this.skier?.traverse((o) => {
       if ((o as THREE.Mesh).isMesh) o.castShadow = true;
     });
     for (const n of J_NAMES) {
-      const j = scene.getObjectByName(n);
+      const j = this.rig.joints.get(n);
       if (j) this.joints.set(n, j);
     }
-    this.skiL = scene.getObjectByName("SkiL") ?? undefined;
-    this.skiR = scene.getObjectByName("SkiR") ?? undefined;
+    this.skiL = this.skiR = undefined;
+    model.traverse((o) => {
+      if (o.userData.contactSide === "L") this.skiL = o;
+      if (o.userData.contactSide === "R") this.skiR = o;
+    });
     const pelvis = this.joints.get("Pelvis");
     if (pelvis) {
       pelvis.userData.restY ??= pelvis.position.y; // survive re-attach (Strict Mode / HMR)
@@ -680,6 +695,7 @@ export class SkiRunSim {
     // the body stays balanced over the skis instead of tipping with the slope
     const spine = this.joints.get("Spine");
     if (spine && !seated) spine.rotation.x -= this.pitch * 0.55;
+    this.rig?.apply();
 
     // Ski–snow contact: measure where both skis really are after posing, and rest them ON the snow
     if (!seated && !tucked && this.skiL && this.skiR && this.surf) {

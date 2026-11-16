@@ -16,8 +16,12 @@ export type Project = {
   stack: string[];
   /** Image or short muted video shown on hover / in the overlay. Put files in /public/projects/<slug>/ */
   media?: { type: "image" | "video"; src: string; alt: string };
+  /** Full-page captures of the live site, shown as scrolling browser + phone mockups. */
+  screens?: { desktop: Screen; mobile: Screen; alt: string };
   links: { live?: string; repo?: string };
 };
+
+export type Screen = { src: string; width: number; height: number };
 
 export type Experience = {
   hash: string; // fake commit hash shown in the git-log style timeline
@@ -81,6 +85,11 @@ export const site = {
       role: "Frontend",
       stack: ["Booking flows", "Calendars", "Performance"],
       links: { live: "https://frontend.nuaris.co" },
+      screens: {
+        desktop: { src: "/projects/nuaris/desktop.webp", width: 1280, height: 4101 },
+        mobile: { src: "/projects/nuaris/mobile.webp", width: 440, height: 7897 },
+        alt: "Nuaris yacht booking site",
+      },
     },
     {
       slug: "ditchit",
@@ -92,6 +101,11 @@ export const site = {
       role: "Frontend",
       stack: ["Next.js", "TypeScript", "shadcn/ui", "Tailwind", "Zustand", "Zod"],
       links: { live: "https://ditchit.com" },
+      screens: {
+        desktop: { src: "/projects/ditchit/desktop.webp", width: 1280, height: 6222 },
+        mobile: { src: "/projects/ditchit/mobile.webp", width: 440, height: 7897 },
+        alt: "Ditchit local marketplace",
+      },
     },
     {
       slug: "monsbah",
@@ -103,6 +117,11 @@ export const site = {
       role: "Frontend",
       stack: ["Next.js 15", "React Hook Form", "Zod", "SEO", "i18n"],
       links: { live: "https://monsbah.com" },
+      screens: {
+        desktop: { src: "/projects/monsbah/desktop.webp", width: 1280, height: 5493 },
+        mobile: { src: "/projects/monsbah/mobile.webp", width: 440, height: 7897 },
+        alt: "Monsbah fashion storefront",
+      },
     },
     {
       slug: "tasamii",
@@ -114,6 +133,11 @@ export const site = {
       role: "Frontend",
       stack: ["React", "TanStack Table", "RTL/LTR", "Chat", "Payments"],
       links: { live: "https://tasamii.com" },
+      screens: {
+        desktop: { src: "/projects/tasamii/desktop.webp", width: 1280, height: 1872 },
+        mobile: { src: "/projects/tasamii/mobile.webp", width: 440, height: 3022 },
+        alt: "Tasamii goal-coaching platform",
+      },
     },
   ] satisfies Project[] as Project[],
 

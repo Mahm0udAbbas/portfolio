@@ -33,7 +33,13 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
         </div>
       </dl>
 
-      <ProjectMedia project={p} index={index} sizes="(min-width: 1024px) 960px, 100vw" className="mt-10 aspect-video" />
+      <ProjectMedia
+        project={p}
+        index={index}
+        sizes="(min-width: 1024px) 960px, 100vw"
+        mode="auto"
+        className={p.screens ? "mt-10 mb-6 flex aspect-[16/10]" : "mt-10 aspect-video"}
+      />
 
       <div className="mt-12 grid gap-10 md:grid-cols-[2fr_1fr]">
         <p className="text-lg leading-relaxed text-fg/85">{p.description}</p>
