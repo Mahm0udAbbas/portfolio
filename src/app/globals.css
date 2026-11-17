@@ -22,7 +22,8 @@
   a[href],
   summary,
   label[for],
-  select {
+  select,
+  [data-clickable] {
     cursor: pointer;
   }
   button:disabled {

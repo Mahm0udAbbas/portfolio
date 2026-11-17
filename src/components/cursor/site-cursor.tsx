@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 /** Fired by the footer bug swarm when a bug is squashed under the pointer. */
 export const CURSOR_CATCH = "cursor:catch";
 
-const CLICKABLE = "a[href], button:not(:disabled), [role='button'], label[for], summary, select";
+const CLICKABLE = "a[href], button:not(:disabled), [role='button'], label[for], summary, select, [data-clickable]";
 const TEXT_ENTRY = "input, textarea, [contenteditable='true']";
 
 /**

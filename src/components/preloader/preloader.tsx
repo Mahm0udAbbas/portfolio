@@ -5,7 +5,11 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { site } from "@/content/site";
 import { Logo } from "@/components/brand/logo";
-import { assetProgress, assetsSettled, trackPageBasics } from "@/lib/asset-gate";
+import {
+  assetProgress,
+  assetsSettled,
+  trackPageBasics,
+} from "@/lib/asset-gate";
 import { PRELOADER_DONE } from "@/lib/lenis";
 
 gsap.registerPlugin(useGSAP);
@@ -29,7 +33,9 @@ export function Preloader() {
       const q = gsap.utils.selector(el);
       const html = document.documentElement;
       const main = document.querySelector("main");
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
 
       let returning = false;
       try {
@@ -89,17 +95,25 @@ export function Preloader() {
         window.removeEventListener("pointerdown", skip);
         type.progress(1);
 
-        const targetSvg = document.querySelector<SVGSVGElement>("[data-logo-target] svg");
+        const targetSvg = document.querySelector<SVGSVGElement>(
+          "[data-logo-target] svg",
+        );
         const finish = () => {
           gsap.ticker.remove(tickBar);
           html.removeAttribute("data-preloading");
-          if (main) gsap.set(main, { clearProps: "opacity,transform,visibility" });
+          if (main)
+            gsap.set(main, { clearProps: "opacity,transform,visibility" });
           window.dispatchEvent(new Event(PRELOADER_DONE));
           setGone(true);
         };
 
         if (reduced || !targetSvg) {
-          gsap.to(el, { autoAlpha: 0, duration: 0.4, delay: 0.3, onComplete: finish });
+          gsap.to(el, {
+            autoAlpha: 0,
+            duration: 0.4,
+            delay: 0.3,
+            onComplete: finish,
+          });
           return;
         }
 
@@ -119,20 +133,71 @@ export function Preloader() {
 
         gsap
           .timeline({ onComplete: finish })
-          .to(term, { scale: 0.25, autoAlpha: 0, duration: 0.45, ease: "power3.in" })
-          .to(stroke, { strokeDashoffset: 0, duration: 0.6, ease: "power2.inOut" }, "-=0.2")
-          .to(cursor, { scale: 1, duration: 0.35, ease: "back.out(3)" }, "-=0.12")
+          .to(term, {
+            scale: 0.25,
+            autoAlpha: 0,
+            duration: 0.45,
+            ease: "power3.in",
+          })
+          .to(
+            stroke,
+            { strokeDashoffset: 0, duration: 0.6, ease: "power2.inOut" },
+            "-=0.2",
+          )
+          .to(
+            cursor,
+            { scale: 1, duration: 0.35, ease: "back.out(3)" },
+            "-=0.12",
+          )
           // anticipation squash before take-off
-          .to(fly, { scaleX: 1.12, scaleY: 0.84, duration: 0.14, ease: "power2.out" }, "+=0.12")
+          .to(
+            fly,
+            { scaleX: 1.12, scaleY: 0.84, duration: 0.14, ease: "power2.out" },
+            "+=0.12",
+          )
           .addLabel("fly")
-          .to(el, { backgroundColor: "rgba(238,240,244,0)", duration: 0.7, ease: "power1.out" }, "fly")
-          .to(fly, { x: dx, duration: FLY + DROP * 0.5, ease: "power2.inOut" }, "fly")
-          .to(fly, { scaleX: s, scaleY: s, duration: contact, ease: "power2.inOut" }, "fly")
+          .to(
+            el,
+            {
+              backgroundColor: "rgba(238,240,244,0)",
+              duration: 0.7,
+              ease: "power1.out",
+            },
+            "fly",
+          )
+          .to(
+            fly,
+            { x: dx, duration: FLY + DROP * 0.5, ease: "power2.inOut" },
+            "fly",
+          )
+          .to(
+            fly,
+            { scaleX: s, scaleY: s, duration: contact, ease: "power2.inOut" },
+            "fly",
+          )
           .to(fly, { y: dy - rise, duration: FLY, ease: "power2.out" }, "fly")
           .to(fly, { y: dy, duration: DROP, ease: "bounce.out" }, `fly+=${FLY}`)
           // squash on impact, then elastic settle
-          .to(fly, { scaleX: s * 1.25, scaleY: s * 0.72, duration: 0.07, ease: "power1.out" }, `fly+=${contact}`)
-          .to(fly, { scaleX: s, scaleY: s, duration: 0.9, ease: "elastic.out(1.1, 0.3)" }, `fly+=${contact + 0.07}`)
+          .to(
+            fly,
+            {
+              scaleX: s * 1.25,
+              scaleY: s * 0.72,
+              duration: 0.07,
+              ease: "power1.out",
+            },
+            `fly+=${contact}`,
+          )
+          .to(
+            fly,
+            {
+              scaleX: s,
+              scaleY: s,
+              duration: 0.9,
+              ease: "elastic.out(1.1, 0.3)",
+            },
+            `fly+=${contact + 0.07}`,
+          )
           .fromTo(
             main,
             { autoAlpha: 0, y: 28 },
@@ -153,7 +218,9 @@ export function Preloader() {
       window.addEventListener("pointerdown", skip);
 
       type.timeScale(returning ? 2.4 : 1).play();
-      const typed = new Promise<void>((resolve) => type.eventCallback("onComplete", () => resolve()));
+      const typed = new Promise<void>((resolve) =>
+        type.eventCallback("onComplete", () => resolve()),
+      );
       Promise.all([typed, assetsSettled(8000)]).then(runOutro);
 
       return () => {
@@ -184,7 +251,9 @@ export function Preloader() {
           <span className="size-2.5 rounded-full bg-accent" />
           <span className="size-2.5 rounded-full bg-line" />
           <span className="size-2.5 rounded-full bg-line" />
-          <span className="ml-3 text-xs text-muted">{site.handle}@portfolio: ~</span>
+          <span className="ml-3 text-xs text-muted">
+            {site.handle}@portfolio: ~
+          </span>
         </div>
 
         <div className="min-h-44 space-y-2 px-5 py-4">
@@ -212,7 +281,9 @@ export function Preloader() {
             0%
           </span>
         </div>
-        <p className="px-5 pb-3 text-[11px] text-muted/70">press any key to skip</p>
+        <p className="px-5 pb-3 text-[11px] text-muted/70">
+          press any key to skip
+        </p>
       </div>
 
       <div

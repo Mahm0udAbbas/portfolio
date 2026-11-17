@@ -2,10 +2,16 @@ import type { Project } from "@/content/site";
 import { ProjectMedia } from "./project-media";
 
 /** Case-study content — shared by the overlay (intercepted route) and the full /projects/[slug] page. */
-export function ProjectDetail({ project: p, index }: { project: Project; index: number }) {
+export function ProjectDetail({
+  project: p,
+  index,
+}: {
+  project: Project;
+  index: number;
+}) {
   const links = [
     p.links.live && { label: "live site", href: p.links.live },
-    p.links.repo && { label: "source code", href: p.links.repo },
+    // p.links.repo && { label: "source code", href: p.links.repo },
   ].filter((l): l is { label: string; href: string } => !!l);
 
   return (
@@ -13,7 +19,10 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
       <p className="font-mono text-sm text-muted">
         <span className="text-accent-strong">~/</span>projects/{p.slug}
       </p>
-      <h1 id="project-title" className="mt-4 text-5xl font-semibold tracking-tight sm:text-7xl">
+      <h1
+        id="project-title"
+        className="mt-4 text-5xl font-semibold tracking-tight sm:text-7xl"
+      >
         {p.title}
       </h1>
       <p className="mt-4 max-w-2xl text-xl text-fg/75">{p.tagline}</p>
@@ -38,7 +47,9 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
         index={index}
         sizes="(min-width: 1024px) 960px, 100vw"
         mode="auto"
-        className={p.screens ? "mt-10 mb-6 flex aspect-[16/10]" : "mt-10 aspect-video"}
+        className={
+          p.screens ? "mt-10 mb-6 flex aspect-[16/10]" : "mt-10 aspect-video"
+        }
       />
 
       <div className="mt-12 grid gap-10 md:grid-cols-[2fr_1fr]">
@@ -51,7 +62,12 @@ export function ProjectDetail({ project: p, index }: { project: Project; index: 
             <ul className="mt-3 space-y-2">
               {links.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href} target="_blank" rel="noreferrer" className="hover:text-accent-strong">
+                  <a
+                    href={l.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-accent-strong"
+                  >
                     ↗ {l.label}
                   </a>
                 </li>

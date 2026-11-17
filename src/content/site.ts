@@ -69,12 +69,44 @@ export const site = {
     portrait: null as string | null, // e.g. "/me.jpg" (drop the file in /public)
     stats: [
       { value: 2, suffix: "+", label: "Years experience" },
-      { value: 4, suffix: "", label: "Live products" },
+      { value: 6, suffix: "", label: "Live products" },
       { value: 90, suffix: "+", label: "Lighthouse (mobile)" },
     ],
   },
 
   projects: [
+    {
+      slug: "t-car",
+      title: "T-Car",
+      tagline: "Car rental marketplace — find, compare and book cars across Saudi Arabia.",
+      description:
+        "A bilingual (Arabic/English, RTL/LTR) car rental platform where customers find cars by city, airport or train station, filter and compare offers from rental companies, and book daily, monthly or international rentals. I built the Next.js App Router frontend end to end: URL-driven listing filters with pagination, car details and the full booking flow (coupons, Tabby/Tamara and wallet payments, extensions, cancellations and ratings), phone OTP sign-in with NextAuth, Google Maps location, Firebase push notifications, and the customer account — bookings, wallet, bank accounts and loyalty points. Mutations run through server actions with Zod validation, backed by 130+ Vitest test files.",
+      year: "2026",
+      role: "Frontend",
+      stack: ["Next.js 15", "TypeScript", "next-intl", "NextAuth", "Tailwind", "Zod", "Zustand", "Vitest"],
+      links: { live: "https://t-car.app/en" },
+      screens: {
+        desktop: { src: "/projects/t-car/desktop.webp", width: 1280, height: 5691 },
+        mobile: { src: "/projects/t-car/mobile.webp", width: 440, height: 5934 },
+        alt: "T-Car car rental marketplace",
+      },
+    },
+    {
+      slug: "joocare",
+      title: "JooCare",
+      tagline: "AI-powered hiring platform for healthcare and life sciences.",
+      description:
+        "A bilingual (Arabic/English) recruitment platform connecting healthcare professionals with employers. In phase one I led the frontend architecture and technical decisions and shaped the overall product direction — setting up the Next.js App Router foundation with next-intl, TanStack Query and a shadcn/ui design system. I built the home page, server-side job search with filters, SEO metadata and structured data, job details, applications and saved jobs; the candidate profile with experience, education, skills and credentials; role-based auth for candidates and employers with Google and LinkedIn sign-in; the employer dashboard with a multi-step job-post form, job management and applicant review; and Firebase push notifications with a role-aware notification drawer.",
+      year: "2026",
+      role: "Frontend Lead",
+      stack: ["Next.js 16", "TypeScript", "TanStack Query", "next-intl", "shadcn/ui", "NextAuth", "Zod", "Firebase"],
+      links: { live: "https://www.joocare.com/en", repo: "https://github.com/Nami-Design-New/joocare" },
+      screens: {
+        desktop: { src: "/projects/joocare/desktop.webp", width: 1280, height: 6621 },
+        mobile: { src: "/projects/joocare/mobile.webp", width: 440, height: 7897 },
+        alt: "JooCare healthcare hiring platform",
+      },
+    },
     {
       slug: "nuaris",
       title: "Nuaris",
@@ -140,6 +172,9 @@ export const site = {
       },
     },
   ] satisfies Project[] as Project[],
+
+  /** Projects stacked on the home page, in this order (slugs from `projects`). The rest are on /projects. */
+  homeProjects: ["ditchit", "joocare", "monsbah"],
 
   skills: [
     { label: "Languages", items: ["HTML5", "CSS3", "JavaScript", "TypeScript"] },
